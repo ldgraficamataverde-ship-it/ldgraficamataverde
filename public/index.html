@@ -94,7 +94,8 @@
                             <button class="action-btn" data-action="confirm-payment">💰 Confirmar Pagamento</button>
                             <button class="action-btn send-pix" data-action="send-pix">💳 Enviar Pix</button>
                             <div class="production-time-group">
-                                <input type="number" id="production-minutes" placeholder="Min" class="input-field" min="1" value="45">
+                                <label for="production-datetime" style="color: var(--text-secondary); font-size: 0.85rem;">📅 Data/Hora Entrega:</label>
+                                <input type="datetime-local" id="production-datetime" class="input-field" style="width: 220px;">
                                 <button class="action-btn" data-action="set-production">⏱️ Iniciar Produção</button>
                             </div>
                             <button class="action-btn" data-action="finish-production">✅ Finalizar Produção</button>
