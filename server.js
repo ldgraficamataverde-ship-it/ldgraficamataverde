@@ -62,7 +62,6 @@ function loadConversation(clientId) {
 
 // Função para atualizar lista de clientes
 function updateClientList() {
-    // Filtrar apenas clientes não finalizados
     const activeClients = Object.values(clients).filter(client => 
         !finishedClients[client.id]
     );
@@ -87,13 +86,10 @@ io.on('connection', (socket) => {
 
         const clientId = clientName.toLowerCase().replace(/\s/g, '_');
         
-        // Verificar se o cliente já foi finalizado
         if (finishedClients[clientId]) {
-            // Cliente finalizado, mas pode voltar
             delete finishedClients[clientId];
         }
         
-        // Carregar conversa existente ou criar nova
         if (!conversations[clientId]) {
             conversations[clientId] = loadConversation(clientId);
             if (conversations[clientId].length === 0) {
@@ -107,7 +103,6 @@ io.on('connection', (socket) => {
             }
         }
 
-        // Adicionar cliente à lista
         if (!clients[clientId]) {
             clients[clientId] = {
                 id: clientId,
@@ -123,7 +118,6 @@ io.on('connection', (socket) => {
             if (!clientStatus[clientId]) {
                 clientStatus[clientId] = 'Aguardando';
             }
-            // Remover do finalizado se estiver
             if (finishedClients[clientId]) {
                 delete finishedClients[clientId];
             }
@@ -133,18 +127,14 @@ io.on('connection', (socket) => {
         socket.clientId = clientId;
         socket.userType = 'client';
 
-        // Enviar histórico da conversa
         socket.emit('conversation-history', conversations[clientId]);
         
-        // Enviar status atual
         const currentStatus = clientStatus[clientId] || 'Aguardando';
         socket.emit('status-update', currentStatus);
         
-        // Atualizar lista de clientes para todos
         updateClientList();
         
         console.log(`Cliente logado: ${clientName} (${clientId}) - Status: ${currentStatus}`);
-        console.log(`Conversa tem ${conversations[clientId].length} mensagens`);
     });
 
     // Login do funcionário
@@ -154,7 +144,6 @@ io.on('connection', (socket) => {
             socket.userType = 'employee';
             socket.emit('employee-login-success');
             
-            // Enviar lista de clientes atualizada
             const activeClients = Object.values(clients).filter(client => 
                 !finishedClients[client.id]
             );
@@ -187,16 +176,13 @@ io.on('connection', (socket) => {
             messages: conversations[clientId] || []
         });
         
-        console.log(`Funcionário visualizando cliente: ${clientId} - ${conversations[clientId].length} mensagens`);
+        console.log(`Funcionário visualizando cliente: ${clientId}`);
     });
 
     // Mensagem do cliente
     socket.on('client-message', (data) => {
         const clientId = socket.clientId;
-        if (!clientId) {
-            console.log('Erro: clientId não definido');
-            return;
-        }
+        if (!clientId) return;
         
         if (!conversations[clientId]) {
             conversations[clientId] = [];
@@ -224,10 +210,7 @@ io.on('connection', (socket) => {
     // Funcionário: enviar mensagem
     socket.on('employee-message', (data) => {
         const { clientId, text } = data;
-        if (!clientId) {
-            console.log('Erro: clientId não definido');
-            return;
-        }
+        if (!clientId) return;
         
         if (!conversations[clientId]) {
             conversations[clientId] = [];
@@ -250,6 +233,35 @@ io.on('connection', (socket) => {
         });
         
         console.log(`Mensagem do funcionário para ${clientId}: ${text}`);
+    });
+
+    // Funcionário: enviar Pix
+    socket.on('send-pix', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        const pixMessage = `💳 PIX para pagamento:\n📌 CPF: 10622933639\n👤 Favorecido: Silverio Santos Martins\n🏦 Banco: Picpay`;
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'employee',
+            text: pixMessage
+        };
+        
+        if (!conversations[clientId]) {
+            conversations[clientId] = [];
+        }
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
+        });
+        
+        console.log(`PIX enviado para ${clientId}`);
     });
 
     // Funcionário: confirmar pedido
@@ -355,7 +367,6 @@ io.on('connection', (socket) => {
     socket.on('finish-attendance', (clientId) => {
         if (!clients[clientId]) return;
         
-        // Marcar como finalizado
         finishedClients[clientId] = true;
         
         const message = {
@@ -367,22 +378,18 @@ io.on('connection', (socket) => {
         conversations[clientId].push(message);
         saveConversation(clientId);
         
-        // Notificar o cliente
         io.to(clientId).emit('attendance-finished');
         io.to(clientId).emit('conversation-update', message);
         io.to(clientId).emit('status-update', 'Atendimento Finalizado');
         
-        // Remover cliente da lista ativa
         const clientName = clients[clientId].name;
         delete clients[clientId];
         delete clientStatus[clientId];
         
-        // Atualizar lista para todos
         updateClientList();
         
         console.log(`Atendimento finalizado para ${clientName} (${clientId})`);
         
-        // Enviar confirmação para o funcionário
         socket.emit('attendance-finished-confirm', {
             clientId,
             message: `Atendimento de ${clientName} finalizado com sucesso!`
