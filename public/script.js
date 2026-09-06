@@ -1,585 +1,406 @@
-const socket = io({
-    transports: ['polling', 'websocket']
-});
+const socket = io();
 
-console.log('🔄 Conectando ao servidor...');
-
-// Estado
-let currentUser = null;
-let currentClient = null;
-let isEmployee = false;
-let isClient = false;
-let pedidoConfirmado = false;
-let arteConfirmada = false;
-let pagamentoConfirmado = false;
+// Estado da aplicação
+let userType = null;
+let clientId = null;
+let selectedClientId = null;
 let timerInterval = null;
+let timerSeconds = 0;
+let isPaymentConfirmed = false;
 
-// ===== DOM ELEMENTS =====
-const loginScreen = document.getElementById('loginScreen');
-const clientScreen = document.getElementById('clientScreen');
-const employeeScreen = document.getElementById('employeeScreen');
+// DOM Elements
+const loginScreen = document.getElementById('login-screen');
+const clientScreen = document.getElementById('client-screen');
+const employeeScreen = document.getElementById('employee-screen');
 
 // Login
 const tabs = document.querySelectorAll('.tab');
-const tabContents = document.querySelectorAll('.tab-content');
-const clientNameInput = document.getElementById('clientName');
-const btnClientLogin = document.getElementById('btnClientLogin');
-const clientLoginStatus = document.getElementById('clientLoginStatus');
-const employeeUserInput = document.getElementById('employeeUser');
-const employeePassInput = document.getElementById('employeePass');
-const btnEmployeeLogin = document.getElementById('btnEmployeeLogin');
-const employeeLoginStatus = document.getElementById('employeeLoginStatus');
-const employeeLoginForm = document.getElementById('employeeLoginForm');
+const loginClient = document.getElementById('login-client');
+const loginEmployee = document.getElementById('login-employee');
+const clientNameInput = document.getElementById('client-name');
+const clientLoginBtn = document.getElementById('client-login-btn');
+const employeeUsername = document.getElementById('employee-username');
+const employeePassword = document.getElementById('employee-password');
+const employeeLoginBtn = document.getElementById('employee-login-btn');
+const employeeError = document.getElementById('employee-error');
 
 // Cliente
-const clientDisplayName = document.getElementById('clientDisplayName');
-const clientMessages = document.getElementById('clientMessages');
-const clientChatInput = document.getElementById('clientChatInput');
-const btnClientSend = document.getElementById('btnClientSend');
-const btnClientLogout = document.getElementById('btnClientLogout');
-const clientStatusBadge = document.getElementById('clientStatusBadge');
-const clientTempo = document.getElementById('clientTempo');
-const clientPagamento = document.getElementById('clientPagamento');
-const clientArtePronta = document.getElementById('clientArtePronta');
-const clientCobranca = document.getElementById('clientCobranca');
-const clientProducao = document.getElementById('clientProducao');
-const clientValorCobranca = document.getElementById('clientValorCobranca');
-const clientTimerDisplay = document.getElementById('clientTimerDisplay');
-const btnClientPagar = document.getElementById('btnClientPagar');
-const msgServico = document.getElementById('msgServico');
+const clientLogout = document.getElementById('client-logout');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const sendBtn = document.getElementById('send-btn');
+const serviceOptions = document.getElementById('service-options');
+const optionsGrid = document.querySelector('.options-grid');
+const currentStatus = document.getElementById('current-status');
+const timerDisplay = document.getElementById('timer-display');
+const timerCount = document.getElementById('timer-count');
+const paymentSection = document.getElementById('payment-section');
+const paymentAmount = document.getElementById('payment-amount');
+const confirmPaymentBtn = document.getElementById('confirm-payment-btn');
 
 // Funcionário
-const employeeDisplayName = document.getElementById('employeeDisplayName');
-const employeeMessages = document.getElementById('employeeMessages');
-const employeeChatInput = document.getElementById('employeeChatInput');
-const btnEmployeeSend = document.getElementById('btnEmployeeSend');
-const btnEmployeeLogout = document.getElementById('btnEmployeeLogout');
-const clientListContainer = document.getElementById('clientListContainer');
-const employeeChatClient = document.getElementById('employeeChatClient');
-const employeeClientStatus = document.getElementById('employeeClientStatus');
-const employeeStatusBadge = document.getElementById('employeeStatusBadge');
-const employeeTempo = document.getElementById('employeeTempo');
-const btnConfirmarPedido = document.getElementById('btnConfirmarPedido');
-const btnConfirmarArte = document.getElementById('btnConfirmarArte');
-const btnCobrar = document.getElementById('btnCobrar');
-const btnPagamentoRealizado = document.getElementById('btnPagamentoRealizado');
-const employeeCobrancaInput = document.getElementById('employeeCobrancaInput');
-const employeeValorCobranca = document.getElementById('employeeValorCobranca');
-const btnEnviarCobranca = document.getElementById('btnEnviarCobranca');
-const employeeCobrancaEnviada = document.getElementById('employeeCobrancaEnviada');
+const employeeLogout = document.getElementById('employee-logout');
+const clientListContainer = document.getElementById('client-list-container');
+const selectedClientName = document.getElementById('selected-client-name');
+const employeeChatMessages = document.getElementById('employee-chat-messages');
+const employeeChatInput = document.getElementById('employee-chat-input');
+const employeeSendBtn = document.getElementById('employee-send-btn');
+const employeeActions = document.getElementById('employee-actions');
+const chargeInput = document.getElementById('charge-input');
+const chargeAmount = document.getElementById('charge-amount');
+const sendChargeBtn = document.getElementById('send-charge-btn');
 
-// ===== TABS =====
+// Event Listeners - Login
 tabs.forEach(tab => {
-    tab.addEventListener('click', function() {
+    tab.addEventListener('click', () => {
         tabs.forEach(t => t.classList.remove('active'));
-        this.classList.add('active');
-        tabContents.forEach(tc => tc.classList.remove('active'));
+        tab.classList.add('active');
         
-        const targetId = this.dataset.tab;
-        const targetContent = document.getElementById('login' + targetId.charAt(0).toUpperCase() + targetId.slice(1));
-        if (targetContent) targetContent.classList.add('active');
-        
-        if (targetId === 'funcionario') {
-            employeeLoginForm.style.display = 'block';
+        if (tab.dataset.tab === 'client') {
+            loginClient.classList.add('active');
+            loginEmployee.classList.remove('active');
         } else {
-            employeeLoginForm.style.display = 'none';
+            loginClient.classList.remove('active');
+            loginEmployee.classList.add('active');
         }
     });
 });
 
-employeeLoginForm.style.display = 'none';
-
-// ===== FUNÇÕES AUXILIARES =====
-function showStatus(element, message, type) {
-    element.textContent = message;
-    element.className = 'status-msg show ' + type;
-}
-
-function switchScreen(screen) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    if (screen === 'client') {
-        clientScreen.classList.add('active');
-    } else if (screen === 'employee') {
-        employeeScreen.classList.add('active');
-    } else {
-        loginScreen.classList.add('active');
-    }
-}
-
-function addMessage(container, message, sender, type) {
-    const div = document.createElement('div');
-    const timestamp = new Date().toLocaleTimeString('pt-BR');
-    
-    let className = 'msg';
-    if (type === 'cliente') className += ' msg-cliente';
-    else if (type === 'funcionario') className += ' msg-funcionario';
-    else className += ' msg-system';
-    
-    div.className = className;
-    div.innerHTML = `<strong>${sender}</strong> (${timestamp}): ${message}`;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-}
-
-function enableClientChat(enable) {
-    clientChatInput.disabled = !enable;
-    btnClientSend.disabled = !enable;
-}
-
-// ===== LOGIN CLIENTE =====
-btnClientLogin.addEventListener('click', loginCliente);
-clientNameInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') loginCliente();
-});
-
-function loginCliente() {
+clientLoginBtn.addEventListener('click', () => {
     const name = clientNameInput.value.trim();
-    if (name.length < 3) {
-        showStatus(clientLoginStatus, 'Digite seu nome completo', 'error');
-        return;
+    if (name) {
+        userType = 'client';
+        socket.emit('client-login', { name });
     }
-    
-    currentClient = name;
-    isClient = true;
-    isEmployee = false;
-    
-    switchScreen('client');
-    clientDisplayName.textContent = name;
-    clientNameInput.disabled = true;
-    btnClientLogin.disabled = true;
-    
-    socket.emit('client-join', { clientName: name });
-    enableClientChat(true);
-    
-    showStatus(clientLoginStatus, `✅ Conectado como ${name}`, 'success');
-}
-
-// ===== LOGIN FUNCIONÁRIO =====
-btnEmployeeLogin.addEventListener('click', loginFuncionario);
-employeePassInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') loginFuncionario();
 });
 
-async function loginFuncionario() {
-    const username = employeeUserInput.value.trim();
-    const password = employeePassInput.value.trim();
+employeeLoginBtn.addEventListener('click', () => {
+    const username = employeeUsername.value.trim();
+    const password = employeePassword.value.trim();
     
-    if (!username || !password) {
-        showStatus(employeeLoginStatus, 'Preencha todos os campos', 'error');
-        return;
+    if (username && password) {
+        socket.emit('employee-login', { username, password });
     }
-    
-    try {
-        const response = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            isEmployee = true;
-            isClient = false;
-            currentUser = data.user;
-            
-            switchScreen('employee');
-            employeeDisplayName.textContent = `👨‍💼 ${data.user.name}`;
-            employeeUserInput.disabled = true;
-            employeePassInput.disabled = true;
-            btnEmployeeLogin.disabled = true;
-            
-            socket.emit('employee-join', { username, name: data.user.name });
-            showStatus(employeeLoginStatus, `✅ Logado como ${data.user.name}`, 'success');
-            
-            updateClientList();
-        } else {
-            showStatus(employeeLoginStatus, '❌ Credenciais inválidas', 'error');
-        }
-    } catch (error) {
-        showStatus(employeeLoginStatus, '❌ Erro ao fazer login', 'error');
-    }
-}
-
-// ===== ENVIAR MENSAGENS =====
-btnClientSend.addEventListener('click', sendClientMessage);
-clientChatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendClientMessage();
 });
+
+// Event Listeners - Cliente
+clientLogout.addEventListener('click', () => {
+    resetApp();
+});
+
+chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && chatInput.value.trim()) {
+        sendClientMessage();
+    }
+});
+
+sendBtn.addEventListener('click', sendClientMessage);
 
 function sendClientMessage() {
-    const message = clientChatInput.value.trim();
-    if (!message || !isClient) return;
-    
-    socket.emit('client-message', { clientName: currentClient, message });
-    addMessage(clientMessages, message, 'Cliente', 'cliente');
-    clientChatInput.value = '';
+    const text = chatInput.value.trim();
+    if (text && userType === 'client') {
+        socket.emit('client-message', { text });
+        chatInput.value = '';
+    }
 }
 
-btnEmployeeSend.addEventListener('click', sendEmployeeMessage);
-employeeChatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendEmployeeMessage();
+// Event Listeners - Funcionário
+employeeLogout.addEventListener('click', () => {
+    resetApp();
 });
+
+employeeChatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && employeeChatInput.value.trim() && selectedClientId) {
+        sendEmployeeMessage();
+    }
+});
+
+employeeSendBtn.addEventListener('click', sendEmployeeMessage);
 
 function sendEmployeeMessage() {
-    const message = employeeChatInput.value.trim();
-    if (!message || !isEmployee || !currentClient) return;
-    
-    socket.emit('employee-message', { 
-        clientName: currentClient, 
-        message, 
-        employeeName: currentUser.name 
-    });
-    addMessage(employeeMessages, message, currentUser.name, 'funcionario');
-    employeeChatInput.value = '';
+    const text = employeeChatInput.value.trim();
+    if (text && selectedClientId) {
+        socket.emit('employee-message', { clientId: selectedClientId, text });
+        employeeChatInput.value = '';
+    }
 }
 
-// ===== FUNCIONÁRIO - AÇÕES =====
-btnConfirmarPedido.addEventListener('click', () => {
-    if (!currentClient) return;
-    pedidoConfirmado = true;
-    btnConfirmarArte.disabled = false;
-    btnConfirmarPedido.classList.add('active');
+// Socket.IO - Eventos do Cliente
+socket.on('conversation-history', (messages) => {
+    showClientScreen();
+    chatMessages.innerHTML = '';
+    messages.forEach(msg => addMessageToChat(msg));
+    scrollToBottom(chatMessages);
+});
+
+socket.on('conversation-update', (message) => {
+    addMessageToChat(message);
+    scrollToBottom(chatMessages);
+});
+
+socket.on('service-options', (options) => {
+    serviceOptions.style.display = 'block';
+    optionsGrid.innerHTML = '';
+    options.forEach(option => {
+        const btn = document.createElement('button');
+        btn.className = 'service-option';
+        btn.textContent = option;
+        btn.addEventListener('click', () => {
+            socket.emit('select-service', option);
+            serviceOptions.style.display = 'none';
+        });
+        optionsGrid.appendChild(btn);
+    });
+});
+
+socket.on('status-update', (status) => {
+    currentStatus.textContent = status;
+    currentStatus.className = status.toLowerCase().replace(' ', '-');
+});
+
+socket.on('payment-request', (data) => {
+    paymentSection.style.display = 'block';
+    paymentAmount.textContent = `Valor: R$ ${data.amount}`;
+    isPaymentConfirmed = false;
+});
+
+socket.on('production-timer', (minutes) => {
+    timerSeconds = minutes * 60;
+    timerDisplay.style.display = 'block';
+    startTimer();
+});
+
+socket.on('production-finished', () => {
+    timerDisplay.style.display = 'none';
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    currentStatus.textContent = 'Pronto para Retirada';
+});
+
+// Socket.IO - Eventos do Funcionário
+socket.on('employee-login-success', () => {
+    showEmployeeScreen();
+    employeeError.textContent = '';
+});
+
+socket.on('employee-login-error', (error) => {
+    employeeError.textContent = error;
+});
+
+socket.on('client-list-update', (clients) => {
+    renderClientList(clients);
+});
+
+socket.on('employee-conversation-update', (data) => {
+    if (selectedClientId === data.clientId) {
+        addMessageToEmployeeChat(data.message);
+        scrollToBottom(employeeChatMessages);
+    }
+});
+
+// Ações do Funcionário
+document.querySelectorAll('.action-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        if (!selectedClientId) return;
+        
+        switch(action) {
+            case 'confirm-order':
+                socket.emit('confirm-order', selectedClientId);
+                break;
+            case 'confirm-art':
+                socket.emit('confirm-art', selectedClientId);
+                break;
+            case 'charge':
+                chargeInput.style.display = 'flex';
+                break;
+            case 'payment-done':
+                // Simular pagamento realizado pelo funcionário
+                socket.emit('employee-payment-done', selectedClientId);
+                break;
+        }
+    });
+});
+
+sendChargeBtn.addEventListener('click', () => {
+    const amount = chargeAmount.value.trim();
+    if (amount && selectedClientId) {
+        socket.emit('charge-client', { clientId: selectedClientId, amount });
+        chargeInput.style.display = 'none';
+        chargeAmount.value = '';
+    }
+});
+
+// Confirmar pagamento pelo cliente
+confirmPaymentBtn.addEventListener('click', () => {
+    if (!isPaymentConfirmed) {
+        socket.emit('confirm-payment');
+        isPaymentConfirmed = true;
+        paymentSection.style.display = 'none';
+    }
+});
+
+// Funções auxiliares
+function addMessageToChat(message) {
+    const div = document.createElement('div');
+    div.className = `message ${message.type}`;
     
-    socket.emit('confirmar-pedido', { clientName: currentClient });
-    addMessage(employeeMessages, '✅ Pedido confirmado!', 'Sistema', 'system');
-    employeeStatusBadge.textContent = '📋 Pedido confirmado';
-});
-
-btnConfirmarArte.addEventListener('click', () => {
-    if (!currentClient || !pedidoConfirmado) return;
-    arteConfirmada = true;
-    btnCobrar.disabled = false;
-    btnConfirmarArte.classList.add('active');
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message.text;
+    div.appendChild(textSpan);
     
-    socket.emit('confirmar-arte', { clientName: currentClient });
-    addMessage(employeeMessages, '🎨 Arte confirmada!', 'Sistema', 'system');
-    employeeStatusBadge.textContent = '🎨 Arte pronta';
-});
-
-btnCobrar.addEventListener('click', () => {
-    if (!currentClient || !arteConfirmada) return;
-    employeeCobrancaInput.style.display = 'flex';
-    btnCobrar.disabled = true;
-});
-
-btnEnviarCobranca.addEventListener('click', () => {
-    const valor = employeeValorCobranca.value.trim();
-    if (!valor || parseFloat(valor) <= 0) {
-        alert('Digite um valor válido');
-        return;
+    if (message.timestamp) {
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'timestamp';
+        timeSpan.textContent = new Date(message.timestamp).toLocaleTimeString();
+        div.appendChild(timeSpan);
     }
     
-    const valorFormatado = parseFloat(valor).toFixed(2);
-    socket.emit('cobrar-cliente', { clientName: currentClient, valor: valorFormatado });
-    
-    employeeCobrancaInput.style.display = 'none';
-    employeeCobrancaEnviada.style.display = 'block';
-    btnPagamentoRealizado.disabled = false;
-    employeeValorCobranca.value = '';
-    
-    addMessage(employeeMessages, `💰 Cobrança enviada: R$ ${valorFormatado}`, 'Sistema', 'system');
-});
+    chatMessages.appendChild(div);
+}
 
-btnPagamentoRealizado.addEventListener('click', () => {
-    if (!currentClient) return;
+function addMessageToEmployeeChat(message) {
+    const div = document.createElement('div');
+    div.className = `message ${message.type}`;
     
-    socket.emit('pagamento-realizado', { clientName: currentClient });
-    btnPagamentoRealizado.disabled = true;
-    btnPagamentoRealizado.classList.add('active');
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message.text;
+    div.appendChild(textSpan);
     
-    addMessage(employeeMessages, '✅ Pagamento confirmado! Iniciando produção...', 'Sistema', 'system');
-    employeeStatusBadge.textContent = '🟠 Em produção';
-    employeeTempo.textContent = '⏱️ 45 min';
-});
+    if (message.timestamp) {
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'timestamp';
+        timeSpan.textContent = new Date(message.timestamp).toLocaleTimeString();
+        div.appendChild(timeSpan);
+    }
+    
+    employeeChatMessages.appendChild(div);
+}
 
-// ===== CLIENTE - PAGAR =====
-btnClientPagar.addEventListener('click', () => {
-    if (pagamentoConfirmado) return;
-    
-    pagamentoConfirmado = true;
-    clientPagamento.style.display = 'none';
-    clientCobranca.style.display = 'none';
-    clientProducao.style.display = 'block';
-    clientStatusBadge.textContent = '🟠 EM PRODUÇÃO';
-    clientStatusBadge.className = 'status-badge em-producao';
-    clientTempo.textContent = '⏱️ 45 min';
-    btnClientPagar.disabled = true;
-    
-    addMessage(clientMessages, '✅ Pagamento confirmado!', 'Sistema', 'system');
-    addMessage(clientMessages, '⏱️ Serviço em produção - 45 minutos', 'Sistema', 'system');
-    
-    iniciarTimer(45);
-});
+function renderClientList(clients) {
+    clientListContainer.innerHTML = '';
+    clients.forEach(client => {
+        const div = document.createElement('div');
+        div.className = `client-item${selectedClientId === client.id ? ' active' : ''}`;
+        
+        div.innerHTML = `
+            <div class="client-name">${client.name}</div>
+            <div class="client-status">
+                Status: <span class="status-badge ${client.status.toLowerCase().replace(' ', '-')}">${client.status}</span>
+            </div>
+        `;
+        
+        div.addEventListener('click', () => {
+            selectClient(client.id);
+        });
+        
+        clientListContainer.appendChild(div);
+    });
+}
 
-// ===== TIMER =====
-function iniciarTimer(minutos) {
-    let totalSegundos = minutos * 60;
+function selectClient(clientId) {
+    selectedClientId = clientId;
+    const client = Object.values(clients).find(c => c.id === clientId);
+    if (client) {
+        selectedClientName.textContent = client.name;
+    }
     
-    if (timerInterval) clearInterval(timerInterval);
+    // Atualizar lista
+    const items = clientListContainer.querySelectorAll('.client-item');
+    items.forEach(item => {
+        const name = item.querySelector('.client-name').textContent;
+        if (name === client.name) {
+            item.classList.add('active');
+        } else {
+            item.classList.remove('active');
+        }
+    });
+    
+    // Ativar ações
+    employeeActions.style.display = 'flex';
+    employeeChatInput.disabled = false;
+    employeeSendBtn.disabled = false;
+    
+    // Limpar chat
+    employeeChatMessages.innerHTML = '';
+}
+
+function scrollToBottom(element) {
+    element.scrollTop = element.scrollHeight;
+}
+
+function startTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
     
     timerInterval = setInterval(() => {
-        totalSegundos--;
-        
-        if (totalSegundos <= 0) {
+        timerSeconds--;
+        if (timerSeconds <= 0) {
             clearInterval(timerInterval);
-            clientTimerDisplay.textContent = '00:00';
-            addMessage(clientMessages, '✅ Serviço finalizado! Pronto para retirada.', 'Sistema', 'system');
-            return;
+            timerInterval = null;
+            timerCount.textContent = '00:00';
+            socket.emit('production-finished');
+        } else {
+            const minutes = Math.floor(timerSeconds / 60);
+            const seconds = timerSeconds % 60;
+            timerCount.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
-        
-        const mins = Math.floor(totalSegundos / 60);
-        const segs = totalSegundos % 60;
-        clientTimerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
     }, 1000);
 }
 
-// ===== LISTA DE CLIENTES =====
-function updateClientList() {
-    if (!isEmployee) return;
-    
-    fetch('/api/clients')
-        .then(res => res.json())
-        .then(clients => {
-            clientListContainer.innerHTML = '';
-            if (clients.length === 0) {
-                clientListContainer.innerHTML = '<div style="color:#555;text-align:center;padding:20px;">Nenhum cliente ainda</div>';
-                return;
-            }
-            
-            clients.forEach((client) => {
-                const div = document.createElement('div');
-                div.className = 'client-item';
-                if (client === currentClient) div.classList.add('active');
-                
-                div.innerHTML = `
-                    <span class="name">${client}</span>
-                    <span class="status-dot online"></span>
-                `;
-                
-                div.addEventListener('click', () => {
-                    currentClient = client;
-                    employeeChatClient.textContent = client;
-                    employeeClientStatus.textContent = '🟢 online';
-                    employeeClientStatus.className = 'status-badge online';
-                    
-                    employeeChatInput.disabled = false;
-                    btnEmployeeSend.disabled = false;
-                    
-                    btnConfirmarPedido.classList.remove('active');
-                    btnConfirmarArte.classList.remove('active');
-                    btnConfirmarArte.disabled = true;
-                    btnCobrar.disabled = true;
-                    btnPagamentoRealizado.disabled = true;
-                    btnPagamentoRealizado.classList.remove('active');
-                    employeeCobrancaInput.style.display = 'none';
-                    employeeCobrancaEnviada.style.display = 'none';
-                    pedidoConfirmado = false;
-                    arteConfirmada = false;
-                    
-                    fetch(`/api/conversations/${client}`)
-                        .then(res => res.json())
-                        .then(messages => {
-                            employeeMessages.innerHTML = '';
-                            messages.forEach(msg => {
-                                const type = msg.sender === 'Cliente' ? 'cliente' : 'funcionario';
-                                addMessage(employeeMessages, msg.message, msg.sender, type);
-                            });
-                        });
-                    
-                    updateClientList();
-                });
-                
-                clientListContainer.appendChild(div);
-            });
-        })
-        .catch(err => console.error('Erro:', err));
+function showClientScreen() {
+    loginScreen.style.display = 'none';
+    clientScreen.style.display = 'block';
+    employeeScreen.style.display = 'none';
+    chatInput.disabled = false;
+    sendBtn.disabled = false;
 }
 
-// ===== SOCKET EVENTS =====
-socket.on('connect', () => {
-    console.log('✅ Conectado ao servidor');
-});
+function showEmployeeScreen() {
+    loginScreen.style.display = 'none';
+    clientScreen.style.display = 'none';
+    employeeScreen.style.display = 'block';
+}
 
-socket.on('connect_error', (error) => {
-    console.error('❌ Erro de conexão:', error);
-    alert('Erro ao conectar ao servidor. Certifique-se que o servidor está rodando.');
-});
-
-socket.on('chat-history', (messages) => {
-    if (isClient) {
-        clientMessages.innerHTML = '';
-        messages.forEach(msg => {
-            const type = msg.sender === 'Cliente' ? 'cliente' : 'funcionario';
-            addMessage(clientMessages, msg.message, msg.sender, type);
-        });
-    }
-});
-
-socket.on('new-message', (data) => {
-    if (isClient && currentClient === data.clientName) {
-        const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
-        addMessage(clientMessages, data.message, data.sender, type);
-    } else if (isEmployee) {
-        if (currentClient === data.clientName) {
-            const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
-            addMessage(employeeMessages, data.message, data.sender, type);
-        }
-        updateClientList();
-    }
-});
-
-socket.on('client-join-success', (data) => {
-    console.log('✅ Cliente entrou:', data.clientName);
-    // Mensagens automáticas
-    setTimeout(() => {
-        addMessage(clientMessages, '👋 Bem-vindo à LD Gráfica!', 'Sistema', 'system');
-        addMessage(clientMessages, '📌 Descreva o seu serviço:', 'Sistema', 'system');
-        addMessage(clientMessages, 'Opções: Impressão em Lona, Vinil ou Recorte a Laser', 'Sistema', 'system');
-    }, 500);
-});
-
-socket.on('pedido-confirmado', (data) => {
-    if (isClient && currentClient === data.clientName) {
-        addMessage(clientMessages, '✅ Pedido confirmado!', 'Sistema', 'system');
-        clientStatusBadge.textContent = '📋 Pedido confirmado';
-    }
-});
-
-socket.on('arte-confirmada', (data) => {
-    if (isClient && currentClient === data.clientName) {
-        addMessage(clientMessages, '🎨 Arte pronta!', 'Sistema', 'system');
-        clientStatusBadge.textContent = '🎨 Arte pronta';
-        clientArtePronta.style.display = 'block';
-    }
-});
-
-socket.on('cobranca-enviada', (data) => {
-    if (isClient && currentClient === data.clientName) {
-        clientCobranca.style.display = 'block';
-        clientValorCobranca.textContent = data.valor;
-        clientPagamento.style.display = 'flex';
-        clientArtePronta.style.display = 'none';
-        addMessage(clientMessages, `💰 Valor do serviço: R$ ${data.valor}`, 'Sistema', 'system');
-    }
-});
-
-socket.on('pagamento-confirmado', (data) => {
-    if (isClient && currentClient === data.clientName) {
-        clientPagamento.style.display = 'none';
-        clientCobranca.style.display = 'none';
-        clientProducao.style.display = 'block';
-        clientStatusBadge.textContent = '🟠 EM PRODUÇÃO';
-        clientStatusBadge.className = 'status-badge em-producao';
-        clientTempo.textContent = '⏱️ 45 min';
-        
-        addMessage(clientMessages, '✅ Pagamento confirmado!', 'Sistema', 'system');
-        addMessage(clientMessages, '⏱️ Serviço em produção - 45 minutos', 'Sistema', 'system');
-        
-        iniciarTimer(45);
-    }
-});
-
-socket.on('update-client-list', () => {
-    if (isEmployee) updateClientList();
-});
-
-socket.on('client-online', (data) => {
-    if (isEmployee) {
-        updateClientList();
-        if (currentClient === data.clientName) {
-            employeeClientStatus.textContent = '🟢 online';
-            employeeClientStatus.className = 'status-badge online';
-        }
-    }
-});
-
-socket.on('client-offline', (data) => {
-    if (isEmployee) {
-        updateClientList();
-        if (currentClient === data.clientName) {
-            employeeClientStatus.textContent = '🔴 offline';
-            employeeClientStatus.className = 'status-badge';
-        }
-    }
-});
-
-socket.on('employee-message-sent', (data) => {
-    if (isEmployee && currentClient === data.clientName) {
-        addMessage(employeeMessages, data.message, data.sender, 'funcionario');
-    }
-});
-
-// ===== LOGOUT =====
-btnClientLogout.addEventListener('click', logout);
-btnEmployeeLogout.addEventListener('click', logout);
-
-function logout() {
-    if (timerInterval) clearInterval(timerInterval);
+function resetApp() {
+    loginScreen.style.display = 'flex';
+    clientScreen.style.display = 'none';
+    employeeScreen.style.display = 'none';
+    userType = null;
+    clientId = null;
+    selectedClientId = null;
+    isPaymentConfirmed = false;
     
-    isClient = false;
-    isEmployee = false;
-    currentClient = null;
-    currentUser = null;
-    pedidoConfirmado = false;
-    arteConfirmada = false;
-    pagamentoConfirmado = false;
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
     
-    clientNameInput.disabled = false;
-    btnClientLogin.disabled = false;
-    employeeUserInput.disabled = false;
-    employeePassInput.disabled = false;
-    btnEmployeeLogin.disabled = false;
-    clientNameInput.value = '';
-    clientChatInput.value = '';
-    employeeChatInput.value = '';
-    employeeValorCobranca.value = '';
-    clientMessages.innerHTML = '';
-    employeeMessages.innerHTML = '';
-    clientPagamento.style.display = 'none';
-    clientArtePronta.style.display = 'none';
-    clientCobranca.style.display = 'none';
-    clientProducao.style.display = 'none';
-    clientStatusBadge.textContent = '⏳ Aguardando';
-    clientStatusBadge.className = 'status-badge';
-    clientTempo.textContent = '-- min';
-    clientTimerDisplay.textContent = '00:00';
-    employeeStatusBadge.textContent = '⏳ Aguardando';
-    employeeStatusBadge.className = 'status-badge';
-    employeeTempo.textContent = '-- min';
-    employeeChatClient.textContent = 'Selecione um cliente';
-    employeeClientStatus.textContent = 'offline';
-    employeeClientStatus.className = 'status-badge';
+    // Resetar campos
+    chatMessages.innerHTML = '';
+    employeeChatMessages.innerHTML = '';
+    clientListContainer.innerHTML = '';
+    serviceOptions.style.display = 'none';
+    timerDisplay.style.display = 'none';
+    paymentSection.style.display = 'none';
+    employeeActions.style.display = 'none';
+    chargeInput.style.display = 'none';
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
     employeeChatInput.disabled = true;
-    btnEmployeeSend.disabled = true;
-    btnConfirmarPedido.classList.remove('active');
-    btnConfirmarArte.classList.remove('active');
-    btnConfirmarArte.disabled = true;
-    btnCobrar.disabled = true;
-    btnPagamentoRealizado.disabled = true;
-    btnPagamentoRealizado.classList.remove('active');
-    employeeCobrancaInput.style.display = 'none';
-    employeeCobrancaEnviada.style.display = 'none';
-    msgServico.textContent = '📌 Descreva o seu serviço:';
-    employeeLoginForm.style.display = 'none';
-    
-    clientLoginStatus.className = 'status-msg';
-    employeeLoginStatus.className = 'status-msg';
-    
-    switchScreen('login');
-    
-    tabs.forEach(t => t.classList.remove('active'));
-    document.querySelector('.tab[data-tab="cliente"]').classList.add('active');
-    tabContents.forEach(tc => tc.classList.remove('active'));
-    document.getElementById('loginCliente').classList.add('active');
+    employeeSendBtn.disabled = true;
 }
 
-// ===== INICIAR =====
-enableClientChat(false);
-employeeChatInput.disabled = true;
-btnEmployeeSend.disabled = true;
-switchScreen('login');
+// Dados em memória para funcionário
+const clients = {};
 
-console.log('🚀 Sistema LD Gráfica');
-console.log('👤 Funcionário: Dinho | Senha: 123456');
-console.log('📋 Fluxo: Serviço → Dimensões → Análise → Pedido → Arte → Cobrança → Pagamento → Produção');
+// Inicializar
+document.addEventListener('DOMContentLoaded', () => {
+    // Tela de login como padrão
+    loginScreen.style.display = 'flex';
+    clientScreen.style.display = 'none';
+    employeeScreen.style.display = 'none';
+});
