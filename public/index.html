@@ -60,28 +60,9 @@
 
                     <div class="chat-container">
                         <div id="chat-messages" class="chat-messages"></div>
-                        
-                        <div id="service-options" class="service-options" style="display: none;">
-                            <p>Selecione o serviço desejado:</p>
-                            <div class="options-grid"></div>
-                        </div>
-
-                        <div id="payment-section" style="display: none;">
-                            <div class="payment-info">
-                                <p><strong>Dinho Papelaria - Em frente ao Açaí do Doga</strong></p>
-                                <p id="payment-amount"></p>
-                            </div>
-                            <div class="payment-options">
-                                <button class="payment-btn">Pix</button>
-                                <button class="payment-btn">Cartão de Crédito/Débito</button>
-                                <button class="payment-btn">Pagar no estabelecimento</button>
-                            </div>
-                            <button id="confirm-payment-btn" class="btn-primary">Confirmar Pagamento</button>
-                        </div>
-
                         <div class="chat-input">
-                            <input type="text" id="chat-input" placeholder="Digite sua mensagem..." disabled>
-                            <button id="send-btn" disabled>Enviar</button>
+                            <input type="text" id="chat-input" placeholder="Digite sua mensagem...">
+                            <button id="send-btn">Enviar</button>
                         </div>
                     </div>
                 </div>
@@ -98,7 +79,7 @@
                 
                 <div class="employee-content">
                     <div class="client-list">
-                        <h3>Clientes Online</h3>
+                        <h3>Clientes</h3>
                         <div id="client-list-container"></div>
                     </div>
                     
@@ -110,15 +91,13 @@
                         <div id="employee-chat-messages" class="chat-messages"></div>
                         
                         <div class="employee-actions" id="employee-actions" style="display: none;">
-                            <button class="action-btn" data-action="confirm-order">Confirmar Pedido</button>
-                            <button class="action-btn" data-action="confirm-art">Confirmar Arte</button>
-                            <button class="action-btn" data-action="charge">Cobrar</button>
-                            <button class="action-btn" data-action="payment-done">Pagamento Realizado</button>
-                        </div>
-
-                        <div id="charge-input" style="display: none;">
-                            <input type="number" id="charge-amount" placeholder="Valor do serviço" class="input-field">
-                            <button id="send-charge-btn" class="btn-primary">Enviar Cobrança</button>
+                            <button class="action-btn" data-action="confirm-order">✅ Confirmar Pedido</button>
+                            <button class="action-btn" data-action="confirm-payment">💰 Confirmar Pagamento</button>
+                            <div class="production-time-group">
+                                <input type="number" id="production-minutes" placeholder="Minutos" class="input-field" min="1" value="45">
+                                <button class="action-btn" data-action="set-production">⏱️ Iniciar Produção</button>
+                            </div>
+                            <button class="action-btn" data-action="finish-production">✅ Finalizar Produção</button>
                         </div>
 
                         <div class="chat-input">
