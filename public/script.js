@@ -152,6 +152,11 @@ document.querySelectorAll('.action-btn').forEach(btn => {
             case 'confirm-payment':
                 socket.emit('confirm-payment', selectedClientId);
                 break;
+            case 'send-pix':
+                if (confirm('Enviar dados do PIX para o cliente?')) {
+                    socket.emit('send-pix', selectedClientId);
+                }
+                break;
             case 'set-production':
                 const minutes = parseInt(productionMinutes.value) || 45;
                 socket.emit('set-production-time', { 
@@ -191,7 +196,6 @@ socket.on('status-update', (status) => {
     currentStatus.textContent = status;
     currentStatus.className = status.toLowerCase().replace(/ /g, '-');
     
-    // Se o status for "Atendimento Finalizado", bloquear o chat
     if (status === 'Atendimento Finalizado') {
         attendanceFinished = true;
         chatInput.disabled = true;
@@ -220,7 +224,6 @@ socket.on('attendance-finished', () => {
     sendBtn.disabled = true;
     chatInput.placeholder = 'Atendimento finalizado';
     
-    // Mostrar mensagem de agradecimento
     const div = document.createElement('div');
     div.className = 'message system';
     div.innerHTML = `
@@ -262,7 +265,6 @@ socket.on('employee-conversation-update', (data) => {
 });
 
 socket.on('attendance-finished-confirm', (data) => {
-    // Limpar seleção do cliente
     selectedClientId = null;
     selectedClientName.textContent = 'Selecione um cliente';
     employeeChatMessages.innerHTML = '';
@@ -270,7 +272,6 @@ socket.on('attendance-finished-confirm', (data) => {
     employeeChatInput.disabled = true;
     employeeSendBtn.disabled = true;
     
-    // Mostrar mensagem de confirmação
     const div = document.createElement('div');
     div.className = 'message system';
     div.textContent = `✅ ${data.message}`;
@@ -282,9 +283,23 @@ function addMessageToChat(message) {
     const div = document.createElement('div');
     div.className = `message ${message.type}`;
     
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message.text;
-    div.appendChild(textSpan);
+    // Verificar se é mensagem de Pix
+    if (message.type === 'employee' && message.text.includes('PIX')) {
+        const lines = message.text.split('\n');
+        const textSpan = document.createElement('span');
+        textSpan.innerHTML = lines.map(line => {
+            if (line.includes('💳')) return `<strong>${line}</strong>`;
+            if (line.includes('CPF')) return `<span class="pix-info">${line}</span>`;
+            if (line.includes('Favorecido')) return `<span class="pix-info">${line}</span>`;
+            if (line.includes('Banco')) return `<span class="pix-info">${line}</span>`;
+            return line;
+        }).join('<br>');
+        div.appendChild(textSpan);
+    } else {
+        const textSpan = document.createElement('span');
+        textSpan.textContent = message.text;
+        div.appendChild(textSpan);
+    }
     
     if (message.timestamp) {
         const timeSpan = document.createElement('span');
@@ -304,9 +319,23 @@ function addMessageToEmployeeChat(message) {
     const div = document.createElement('div');
     div.className = `message ${message.type}`;
     
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message.text;
-    div.appendChild(textSpan);
+    // Verificar se é mensagem de Pix
+    if (message.type === 'employee' && message.text.includes('PIX')) {
+        const lines = message.text.split('\n');
+        const textSpan = document.createElement('span');
+        textSpan.innerHTML = lines.map(line => {
+            if (line.includes('💳')) return `<strong>${line}</strong>`;
+            if (line.includes('CPF')) return `<span class="pix-info">${line}</span>`;
+            if (line.includes('Favorecido')) return `<span class="pix-info">${line}</span>`;
+            if (line.includes('Banco')) return `<span class="pix-info">${line}</span>`;
+            return line;
+        }).join('<br>');
+        div.appendChild(textSpan);
+    } else {
+        const textSpan = document.createElement('span');
+        textSpan.textContent = message.text;
+        div.appendChild(textSpan);
+    }
     
     if (message.timestamp) {
         const timeSpan = document.createElement('span');
