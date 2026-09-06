@@ -3,78 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LD Gráfica - Sistema de Chat</title>
+    <title>LD Gráfica</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Header -->
-        <div class="header">
-            <h1>LD Gráfica <small>· sistema</small></h1>
-            <div class="header-status" id="headerStatus">⏳ offline</div>
-        </div>
-
-        <!-- Login do Cliente -->
-        <div class="login-area" id="clientLogin">
-            <label>👤 Digite seu nome para iniciar o atendimento</label>
-            <div class="login-row">
-                <input type="text" id="clientNameInput" placeholder="Ex: João da Silva">
-                <button id="btnClientEnter">Entrar no chat</button>
-            </div>
-            <div id="clientStatus" class="status-text">Aguardando identificação</div>
-        </div>
-
-        <!-- Login do Funcionário -->
-        <div class="employee-login-area">
-            <div class="employee-toggle">
-                <button id="btnToggleEmployeeLogin">👨‍💼 Área do Funcionário</button>
-            </div>
-            <div id="employeeLoginForm" style="display: none;">
-                <label>👨‍💼 Login do Funcionário</label>
-                <div class="login-row">
-                    <input type="text" id="employeeUsername" placeholder="Usuário" value="Dinho">
-                    <input type="password" id="employeePassword" placeholder="Senha" value="123456">
-                    <button id="btnEmployeeLogin">Entrar</button>
+    <div class="container">
+        <!-- Tela de Login -->
+        <div id="loginScreen" class="screen active">
+            <div class="login-box">
+                <div class="logo">
+                    <h1>LD<span>Gráfica</span></h1>
+                    <p>Sistema de Atendimento</p>
                 </div>
-                <div id="employeeStatus" class="status-text"></div>
-            </div>
-        </div>
-
-        <!-- Chat Area -->
-        <div class="chat-area" id="chatArea">
-            <div class="chat-header">
-                <span id="chatClientName">Cliente</span>
-                <span id="chatStatus" class="status-badge">offline</span>
-            </div>
-            <div class="chat-messages" id="chatMessages"></div>
-            <div class="chat-input-area">
-                <input type="text" id="chatInput" placeholder="Digite sua mensagem..." disabled>
-                <button id="btnSendChat" disabled>Enviar</button>
-            </div>
-        </div>
-
-        <!-- Painel do Pedido (Client-side) -->
-        <div class="pedido-painel" id="pedidoPainel">
-            <div class="pedido-status-area">
-                <div class="status-box">
-                    <span class="status-badge" id="statusBadge">⏳ aguardando</span>
-                    <span id="clientePedido">Cliente</span>
+                
+                <div class="tabs">
+                    <button class="tab active" data-tab="cliente">Cliente</button>
+                    <button class="tab" data-tab="funcionario">Funcionário</button>
                 </div>
-                <div class="tempo-restante" id="tempoRestante">⏱️ -- min</div>
-            </div>
-            <div id="pagamentoArea" class="pagamento-area" style="display: none;">
-                <span>💳 Pagamento</span>
-                <button class="btn-pagar" id="btnPagar">✓ Confirmar pagamento</button>
-            </div>
-            <div id="avisoArtePronta" class="aviso-arte" style="display: none;">
-                🎨 Arte pronta! Aguardando pagamento.
+
+                <!-- Login Cliente -->
+                <div id="loginCliente" class="tab-content active">
+                    <div class="input-group">
+                        <input type="text" id="clientName" placeholder="Digite seu nome" autocomplete="off">
+                        <button id="btnClientLogin">Entrar</button>
+                    </div>
+                    <div id="clientLoginStatus" class="status-msg"></div>
+                </div>
+
+                <!-- Login Funcionário -->
+                <div id="loginFuncionario" class="tab-content">
+                    <div class="input-group">
+                        <input type="text" id="employeeUser" placeholder="Usuário" value="Dinho">
+                        <input type="password" id="employeePass" placeholder="Senha" value="123456">
+                        <button id="btnEmployeeLogin">Entrar</button>
+                    </div>
+                    <div id="employeeLoginStatus" class="status-msg"></div>
+                </div>
             </div>
         </div>
 
-        <!-- Lista de Clientes (Employee-side) -->
-        <div class="client-list" id="clientList" style="display: none;">
-            <h3>📋 Clientes Ativos</h3>
-            <div id="clientsContainer"></div>
+        <!-- Tela do Cliente -->
+        <div id="clientScreen" class="screen">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div>
+                        <span class="client-name" id="clientDisplayName">Cliente</span>
+                        <span class="status-badge online">🟢 online</span>
+                    </div>
+                    <button id="btnClientLogout" class="btn-logout">Sair</button>
+                </div>
+
+                <div class="chat-messages" id="clientMessages">
+                    <div class="msg-system">👋 Bem-vindo à LD Gráfica!</div>
+                    <div class="msg-system">📌 Descreva seu serviço:</div>
+                    <div class="msg-system">• Impressão em Lona</div>
+                    <div class="msg-system">• Impressão em Vinil</div>
+                    <div class="msg-system">• Recorte a Laser</div>
+                </div>
+
+                <div class="chat-input">
+                    <input type="text" id="clientChatInput" placeholder="Digite sua mensagem...">
+                    <button id="btnClientSend">Enviar</button>
+                </div>
+
+                <!-- Painel do Pedido (Cliente) -->
+                <div class="pedido-painel" id="clientPedidoPanel">
+                    <div class="pedido-status">
+                        <span class="status-badge" id="clientStatusBadge">⏳ Aguardando</span>
+                        <span class="tempo" id="clientTempo">-- min</span>
+                    </div>
+                    <div id="clientPagamento" style="display:none;" class="pagamento-box">
+                        <button id="btnClientPagar">💳 Confirmar Pagamento</button>
+                    </div>
+                    <div id="clientArtePronta" style="display:none;" class="arte-pronta-box">
+                        🎨 Arte pronta! Aguardando pagamento.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tela do Funcionário -->
+        <div id="employeeScreen" class="screen">
+            <div class="employee-container">
+                <div class="employee-header">
+                    <div>
+                        <span class="employee-name" id="employeeDisplayName">👨‍💼 Dinho</span>
+                        <span class="status-badge online">🟢 online</span>
+                    </div>
+                    <button id="btnEmployeeLogout" class="btn-logout">Sair</button>
+                </div>
+
+                <div class="employee-content">
+                    <!-- Lista de Clientes -->
+                    <div class="client-list-panel">
+                        <h3>📋 Clientes</h3>
+                        <div id="clientListContainer"></div>
+                    </div>
+
+                    <!-- Chat com o Cliente -->
+                    <div class="employee-chat-panel">
+                        <div class="chat-header-mini">
+                            <span id="employeeChatClient">Selecione um cliente</span>
+                            <span class="status-badge" id="employeeClientStatus">offline</span>
+                        </div>
+                        <div class="chat-messages" id="employeeMessages">
+                            <div class="msg-system">👋 Selecione um cliente para atender</div>
+                        </div>
+                        <div class="chat-input">
+                            <input type="text" id="employeeChatInput" placeholder="Digite sua resposta..." disabled>
+                            <button id="btnEmployeeSend" disabled>Enviar</button>
+                        </div>
+
+                        <!-- Painel do Pedido (Funcionário) -->
+                        <div class="pedido-painel" id="employeePedidoPanel">
+                            <div class="pedido-status">
+                                <span class="status-badge" id="employeeStatusBadge">⏳ Aguardando</span>
+                                <span class="tempo" id="employeeTempo">-- min</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

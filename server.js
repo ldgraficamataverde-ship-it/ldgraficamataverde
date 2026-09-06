@@ -10,16 +10,14 @@ const io = socketIo(server);
 
 const PORT = process.env.PORT || 3000;
 
-// Configurações
 const CONVERSATIONS_DIR = path.join(__dirname, 'conversations');
 const USERS_FILE = path.join(__dirname, 'users.json');
 
-// Criar pasta de conversas se não existir
+// Criar pastas e arquivos necessários
 if (!fs.existsSync(CONVERSATIONS_DIR)) {
     fs.mkdirSync(CONVERSATIONS_DIR);
 }
 
-// Criar arquivo de usuários se não existir
 if (!fs.existsSync(USERS_FILE)) {
     const defaultUsers = {
         "Dinho": {
@@ -31,11 +29,28 @@ if (!fs.existsSync(USERS_FILE)) {
     fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
 }
 
-// Servir arquivos estáticos
 app.use(express.static('public'));
 app.use(express.json());
 
-// Rotas para arquivos de conversa
+// Lista de clientes ordenada por último login
+app.get('/api/clients', (req, res) => {
+    const files = fs.readdirSync(CONVERSATIONS_DIR);
+    const clients = files
+        .filter(file => file.endsWith('.txt'))
+        .map(file => {
+            const clientName = file.replace('.txt', '');
+            const stats = fs.statSync(path.join(CONVERSATIONS_DIR, file));
+            return {
+                name: clientName,
+                lastActivity: stats.mtime.getTime()
+            };
+        })
+        .sort((a, b) => b.lastActivity - a.lastActivity) // Ordenar por mais recente
+        .map(client => client.name);
+    
+    res.json(clients);
+});
+
 app.get('/api/conversations/:clientName', (req, res) => {
     const clientName = req.params.clientName;
     const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
@@ -58,15 +73,6 @@ app.get('/api/conversations/:clientName', (req, res) => {
     }
 });
 
-app.get('/api/clients', (req, res) => {
-    const files = fs.readdirSync(CONVERSATIONS_DIR);
-    const clients = files
-        .filter(file => file.endsWith('.txt'))
-        .map(file => file.replace('.txt', ''));
-    res.json(clients);
-});
-
-// Autenticação
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
@@ -85,9 +91,9 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// Socket.io - Chat em tempo real
+// Socket.io
 io.on('connection', (socket) => {
-    console.log('Novo cliente conectado:', socket.id);
+    console.log('Cliente conectado:', socket.id);
 
     // Cliente entrou no chat
     socket.on('client-join', (data) => {
@@ -112,8 +118,9 @@ io.on('connection', (socket) => {
             socket.emit('chat-history', messages);
         }
         
-        // Notificar funcionários
+        // Notificar funcionários sobre novo cliente
         io.emit('client-online', { clientName, status: 'online' });
+        io.emit('update-client-list');
     });
 
     // Funcionário entrou
@@ -122,16 +129,7 @@ io.on('connection', (socket) => {
         socket.username = username;
         socket.userName = name;
         socket.isClient = false;
-        
-        // Enviar lista de clientes ativos
-        const activeClients = [];
-        const clients = io.sockets.sockets;
-        for (let [id, client] of clients) {
-            if (client.isClient && client.clientName) {
-                activeClients.push(client.clientName);
-            }
-        }
-        socket.emit('active-clients', activeClients);
+        socket.emit('update-client-list');
     });
 
     // Mensagem do cliente
@@ -140,17 +138,16 @@ io.on('connection', (socket) => {
         const timestamp = new Date().toLocaleString('pt-BR');
         const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
         
-        // Salvar no arquivo
         const logLine = `${timestamp}|Cliente|${message}\n`;
         fs.appendFileSync(filePath, logLine);
         
-        // Enviar para todos os funcionários
         io.emit('new-message', {
             clientName,
             message,
             sender: 'Cliente',
             timestamp
         });
+        io.emit('update-client-list');
     });
 
     // Mensagem do funcionário
@@ -159,7 +156,6 @@ io.on('connection', (socket) => {
         const timestamp = new Date().toLocaleString('pt-BR');
         const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
         
-        // Salvar no arquivo
         const logLine = `${timestamp}|${employeeName}|${message}\n`;
         fs.appendFileSync(filePath, logLine);
         
@@ -175,27 +171,25 @@ io.on('connection', (socket) => {
             }
         }
         
-        // Enviar para outros funcionários (atualizar conversa)
         socket.broadcast.emit('employee-message-sent', {
             clientName,
             message,
             sender: employeeName,
             timestamp
         });
+        io.emit('update-client-list');
     });
 
-    // Desconexão
     socket.on('disconnect', () => {
         if (socket.isClient && socket.clientName) {
             io.emit('client-offline', { clientName: socket.clientName });
+            io.emit('update-client-list');
         }
         console.log('Cliente desconectado:', socket.id);
     });
 });
 
-// Iniciar servidor
 server.listen(PORT, () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    console.log(`📁 Conversas salvas em: ${CONVERSATIONS_DIR}`);
     console.log(`👤 Usuário: Dinho | Senha: 123456`);
 });
