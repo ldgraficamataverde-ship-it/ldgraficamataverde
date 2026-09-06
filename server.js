@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,6 +14,37 @@ const PORT = process.env.PORT || 3000;
 // Configurações
 app.use(express.static('public'));
 app.use(express.json());
+
+// Configurar upload de imagens
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, 'public', 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, `img-${uniqueSuffix}${ext}`);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB
+    },
+    fileFilter: function (req, file, cb) {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Apenas imagens são permitidas (JPEG, PNG, GIF, WEBP)'));
+        }
+    }
+});
 
 // Garantir que a pasta de conversas existe
 const conversationsDir = path.join(__dirname, 'conversations');
@@ -30,9 +62,12 @@ const finishedClients = {};
 function saveConversation(clientId) {
     if (!conversations[clientId]) return;
     const filePath = path.join(conversationsDir, `${clientId}.txt`);
-    const content = conversations[clientId].map(msg => 
-        `[${msg.timestamp}] ${msg.type}: ${msg.text}`
-    ).join('\n');
+    const content = conversations[clientId].map(msg => {
+        if (msg.type === 'image') {
+            return `[${msg.timestamp}] ${msg.type}: ${msg.text}|${msg.imageUrl}`;
+        }
+        return `[${msg.timestamp}] ${msg.type}: ${msg.text}`;
+    }).join('\n');
     fs.writeFileSync(filePath, content);
 }
 
@@ -43,10 +78,21 @@ function loadConversation(clientId) {
         return content.split('\n').filter(line => line.trim()).map(line => {
             const match = line.match(/\[(.*?)\]\s+(.*?):\s+(.*)/);
             if (match) {
+                const text = match[3];
+                // Verificar se é uma imagem (contém |)
+                if (text.includes('|')) {
+                    const [msgText, imageUrl] = text.split('|');
+                    return {
+                        timestamp: match[1],
+                        type: match[2],
+                        text: msgText,
+                        imageUrl: imageUrl
+                    };
+                }
                 return {
                     timestamp: match[1],
                     type: match[2],
-                    text: match[3]
+                    text: text
                 };
             }
             const [timestamp, type, ...textParts] = line.replace(/[\[\]]/g, '').split(' ');
@@ -207,6 +253,66 @@ io.on('connection', (socket) => {
         console.log(`Mensagem de ${clientId}: ${data.text}`);
     });
 
+    // Cliente enviar imagem
+    socket.on('client-image', (data) => {
+        const clientId = socket.clientId;
+        if (!clientId) return;
+        
+        if (!conversations[clientId]) {
+            conversations[clientId] = [];
+        }
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'image',
+            text: '📷 Imagem enviada',
+            imageUrl: data.imageUrl,
+            sender: 'client'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        socket.emit('conversation-update', message);
+        
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
+        });
+        
+        console.log(`Imagem enviada por ${clientId}: ${data.imageUrl}`);
+    });
+
+    // Funcionário enviar imagem
+    socket.on('employee-image', (data) => {
+        const { clientId, imageUrl } = data;
+        if (!clientId) return;
+        
+        if (!conversations[clientId]) {
+            conversations[clientId] = [];
+        }
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'image',
+            text: '📷 Imagem enviada',
+            imageUrl: imageUrl,
+            sender: 'employee'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
+        });
+        
+        console.log(`Imagem enviada pelo funcionário para ${clientId}: ${imageUrl}`);
+    });
+
     // Funcionário: enviar mensagem
     socket.on('employee-message', (data) => {
         const { clientId, text } = data;
@@ -317,20 +423,14 @@ io.on('connection', (socket) => {
         const { clientId, datetime } = data;
         if (!clients[clientId]) return;
         
-        // Converter a data para timestamp
         const productionDate = new Date(datetime);
         const now = new Date();
-        
-        // Calcular minutos restantes
         const diffMinutes = Math.floor((productionDate - now) / (1000 * 60));
-        
-        // Se a data for no passado, usar 1 minuto
         const minutes = Math.max(diffMinutes, 1);
         
         clientStatus[clientId] = 'Em Produção';
         clients[clientId].status = 'Em Produção';
         
-        // Formatar data para exibição
         const formattedDate = productionDate.toLocaleDateString('pt-BR', {
             weekday: 'long',
             year: 'numeric',
@@ -426,7 +526,46 @@ io.on('connection', (socket) => {
     });
 });
 
-// Rotas
+// Rota para upload de imagem
+app.post('/upload-image', upload.single('image'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhuma imagem enviada' });
+        }
+        
+        const imageUrl = `/uploads/${req.file.filename}`;
+        res.json({ 
+            success: true, 
+            imageUrl: imageUrl 
+        });
+    } catch (error) {
+        console.error('Erro no upload:', error);
+        res.status(500).json({ error: 'Erro ao fazer upload da imagem' });
+    }
+});
+
+// Rota para upload de imagem do funcionário
+app.post('/upload-employee-image', upload.single('image'), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'Nenhuma imagem enviada' });
+        }
+        
+        const imageUrl = `/uploads/${req.file.filename}`;
+        res.json({ 
+            success: true, 
+            imageUrl: imageUrl 
+        });
+    } catch (error) {
+        console.error('Erro no upload:', error);
+        res.status(500).json({ error: 'Erro ao fazer upload da imagem' });
+    }
+});
+
+// Rota para servir arquivos estáticos
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
+
+// Rota principal
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
