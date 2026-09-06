@@ -11,12 +11,12 @@
         <!-- Header -->
         <div class="header">
             <h1>LD Gráfica <small>· sistema</small></h1>
-            <div class="header-status" id="headerStatus">⏳ desconectado</div>
+            <div class="header-status" id="headerStatus">⏳ offline</div>
         </div>
 
         <!-- Login do Cliente -->
         <div class="login-area" id="clientLogin">
-            <label>👤 Seu nome completo</label>
+            <label>👤 Digite seu nome para iniciar o atendimento</label>
             <div class="login-row">
                 <input type="text" id="clientNameInput" placeholder="Ex: João da Silva">
                 <button id="btnClientEnter">Entrar no chat</button>
@@ -25,15 +25,15 @@
         </div>
 
         <!-- Login do Funcionário -->
-        <div class="employee-login-area" id="employeeLogin">
+        <div class="employee-login-area">
             <div class="employee-toggle">
-                <button id="btnToggleEmployeeLogin">👨‍💼 Funcionário</button>
+                <button id="btnToggleEmployeeLogin">👨‍💼 Área do Funcionário</button>
             </div>
             <div id="employeeLoginForm" style="display: none;">
                 <label>👨‍💼 Login do Funcionário</label>
                 <div class="login-row">
-                    <input type="text" id="employeeUsername" placeholder="Usuário">
-                    <input type="password" id="employeePassword" placeholder="Senha">
+                    <input type="text" id="employeeUsername" placeholder="Usuário" value="Dinho">
+                    <input type="password" id="employeePassword" placeholder="Senha" value="123456">
                     <button id="btnEmployeeLogin">Entrar</button>
                 </div>
                 <div id="employeeStatus" class="status-text"></div>

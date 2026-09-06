@@ -1,414 +1,350 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+const socket = io();
 
-body {
-    background: #0b0b0b;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
+// Estado
+let currentUser = null;
+let currentClient = null;
+let isEmployee = false;
+let isClient = false;
+let chatHistory = [];
+let pedidoConfirmado = false;
+let pagamentoConfirmado = false;
 
-.app-container {
-    max-width: 800px;
-    width: 100%;
-    background: #f5f2e6;
-    border-radius: 32px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 0 2px #f5c800;
-    overflow: hidden;
-}
+// DOM elements
+const clientNameInput = document.getElementById('clientNameInput');
+const btnClientEnter = document.getElementById('btnClientEnter');
+const clientStatus = document.getElementById('clientStatus');
+const employeeUsername = document.getElementById('employeeUsername');
+const employeePassword = document.getElementById('employeePassword');
+const btnEmployeeLogin = document.getElementById('btnEmployeeLogin');
+const employeeStatus = document.getElementById('employeeStatus');
+const btnToggleEmployee = document.getElementById('btnToggleEmployeeLogin');
+const employeeLoginForm = document.getElementById('employeeLoginForm');
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const btnSendChat = document.getElementById('btnSendChat');
+const chatClientName = document.getElementById('chatClientName');
+const chatStatus = document.getElementById('chatStatus');
+const headerStatus = document.getElementById('headerStatus');
+const clientList = document.getElementById('clientList');
+const clientsContainer = document.getElementById('clientsContainer');
 
-.header {
-    background: #111;
-    padding: 18px 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 4px solid #f5c800;
-}
+// Painel do pedido
+const pedidoPainel = document.getElementById('pedidoPainel');
+const statusBadge = document.getElementById('statusBadge');
+const clientePedido = document.getElementById('clientePedido');
+const tempoRestante = document.getElementById('tempoRestante');
+const pagamentoArea = document.getElementById('pagamentoArea');
+const avisoArtePronta = document.getElementById('avisoArtePronta');
+const btnPagar = document.getElementById('btnPagar');
 
-.header h1 {
-    color: #f5c800;
-    font-size: 1.8rem;
-    font-weight: 700;
-}
-
-.header h1 small {
-    font-size: 0.9rem;
-    font-weight: 400;
-    color: #bbbbbb;
-    margin-left: 8px;
-}
-
-.header-status {
-    background: #222;
-    padding: 6px 14px;
-    border-radius: 40px;
-    color: #f5c800;
-    font-weight: 600;
-    font-size: 0.8rem;
-    border: 1px solid #f5c800;
-}
-
-.login-area, .employee-login-area {
-    padding: 20px 24px;
-    background: #faf7ed;
-    border-bottom: 2px dashed #d0c8b0;
-}
-
-.login-row {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-}
-
-.login-row input {
-    flex: 1;
-    min-width: 150px;
-    padding: 14px 18px;
-    border: 2px solid #b8a98a;
-    border-radius: 60px;
-    background: white;
-    font-size: 1rem;
-    outline: none;
-}
-
-.login-row input:focus {
-    border-color: #f5c800;
-}
-
-.login-row button {
-    background: #f5c800;
-    border: none;
-    padding: 0 24px;
-    border-radius: 60px;
-    font-weight: 700;
-    font-size: 1rem;
-    color: #0b0b0b;
-    cursor: pointer;
-    border: 2px solid #f5c800;
-    transition: 0.15s;
-}
-
-.login-row button:hover {
-    background: #ffd733;
-    transform: scale(1.02);
-}
-
-.employee-toggle {
-    text-align: right;
-    margin-bottom: 10px;
-}
-
-.employee-toggle button {
-    background: transparent;
-    border: 2px solid #f5c800;
-    color: #f5c800;
-    padding: 6px 18px;
-    border-radius: 60px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: 0.15s;
-}
-
-.employee-toggle button:hover {
-    background: #f5c800;
-    color: #0b0b0b;
-}
-
-.status-text {
-    margin-top: 8px;
-    font-weight: 600;
-    color: #2b2416;
-    padding: 8px 16px;
-    background: #e6ddca;
-    border-radius: 40px;
-    display: inline-block;
-}
-
-.chat-area {
-    background: #fcf9f2;
-    padding: 16px 24px;
-    border-bottom: 2px solid #d8cfb8;
-}
-
-.chat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    padding: 0 8px;
-}
-
-.chat-header span:first-child {
-    font-weight: 700;
-    font-size: 1.1rem;
-    color: #1f1a0e;
-}
-
-.status-badge {
-    background: #2b2b2b;
-    padding: 4px 14px;
-    border-radius: 40px;
-    color: white;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.status-badge.online {
-    background: #2ecc71;
-    color: white;
-}
-
-.chat-messages {
-    background: #f1ede2;
-    border-radius: 24px;
-    padding: 18px 16px;
-    min-height: 180px;
-    max-height: 300px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border: 1px solid #d8cdb2;
-    margin-bottom: 12px;
-}
-
-.msg {
-    padding: 10px 16px;
-    border-radius: 30px;
-    max-width: 85%;
-    word-break: break-word;
-    line-height: 1.4;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-.msg-cliente {
-    background: #2b2b2b;
-    color: #f5f0e0;
-    align-self: flex-end;
-    border-bottom-right-radius: 6px;
-}
-
-.msg-grafica, .msg-funcionario {
-    background: #f5c800;
-    color: #1a160c;
-    align-self: flex-start;
-    border-bottom-left-radius: 6px;
-    font-weight: 500;
-}
-
-.msg-sistema {
-    background: #d4c8b0;
-    color: #2b2416;
-    align-self: center;
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.chat-input-area {
-    display: flex;
-    gap: 10px;
-}
-
-.chat-input-area input {
-    flex: 1;
-    padding: 12px 18px;
-    border-radius: 60px;
-    border: 2px solid #b8a98a;
-    background: white;
-    font-size: 0.95rem;
-    outline: none;
-}
-
-.chat-input-area input:focus {
-    border-color: #f5c800;
-}
-
-.chat-input-area button {
-    background: #1f1a0e;
-    border: none;
-    padding: 0 24px;
-    border-radius: 60px;
-    color: #f5c800;
-    font-weight: 700;
-    border: 2px solid #f5c800;
-    cursor: pointer;
-    transition: 0.1s;
-}
-
-.chat-input-area button:hover:not(:disabled) {
-    background: #f5c800;
-    color: #0b0b0b;
-}
-
-.chat-input-area button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.pedido-painel {
-    background: #fcf9f2;
-    padding: 16px 24px 24px;
-    border-bottom: 2px solid #d8cfb8;
-}
-
-.pedido-status-area {
-    background: #e8dfce;
-    border-radius: 28px;
-    padding: 16px 20px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    border-left: 8px solid #f5c800;
-}
-
-.status-box {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-}
-
-.status-badge {
-    background: #2b2b2b;
-    padding: 6px 18px;
-    border-radius: 60px;
-    color: white;
-    font-weight: 600;
-    font-size: 0.9rem;
-    border: 2px solid #f5c800;
-}
-
-.status-badge.em-producao {
-    background: #f5c800;
-    color: #0b0b0b;
-    border-color: #d4a800;
-}
-
-.tempo-restante {
-    background: #111;
-    padding: 6px 20px;
-    border-radius: 60px;
-    color: #f5c800;
-    font-weight: 700;
-    font-size: 1.1rem;
-    border: 1px solid #f5c800;
-}
-
-.pagamento-area {
-    margin-top: 14px;
-    background: #fff7e0;
-    padding: 12px 20px;
-    border-radius: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    border: 2px solid #d4b87a;
-}
-
-.btn-pagar {
-    background: #f5c800;
-    border: none;
-    padding: 10px 32px;
-    border-radius: 60px;
-    font-weight: 700;
-    font-size: 1rem;
-    cursor: pointer;
-    border: 2px solid #d4a800;
-    transition: 0.1s;
-}
-
-.btn-pagar:hover:not(:disabled) {
-    background: #ffe066;
-    transform: scale(1.02);
-}
-
-.btn-pagar:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.aviso-arte {
-    background: #ffd966;
-    color: #1f1a0e;
-    padding: 10px 20px;
-    border-radius: 40px;
-    font-weight: 600;
-    margin-top: 12px;
-    text-align: center;
-}
-
-.client-list {
-    background: #fcf9f2;
-    padding: 16px 24px 24px;
-}
-
-.client-list h3 {
-    color: #1f1a0e;
-    margin-bottom: 12px;
-}
-
-#clientsContainer {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.client-item {
-    background: #e8dfce;
-    padding: 10px 16px;
-    border-radius: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-left: 4px solid #f5c800;
-    cursor: pointer;
-    transition: 0.15s;
-}
-
-.client-item:hover {
-    background: #ddd4c0;
-    transform: translateX(4px);
-}
-
-.client-item .status {
-    font-size: 0.8rem;
-    font-weight: 600;
-    padding: 4px 12px;
-    border-radius: 40px;
-}
-
-.client-item .status.online {
-    background: #2ecc71;
-    color: white;
-}
-
-.client-item .status.offline {
-    background: #e74c3c;
-    color: white;
-}
-
-@media (max-width: 600px) {
-    .header h1 {
-        font-size: 1.3rem;
+// ========== CLIENTE - Entrar no chat ==========
+btnClientEnter.addEventListener('click', () => {
+    const name = clientNameInput.value.trim();
+    if (name.length < 3) {
+        alert('Digite seu nome completo (mínimo 3 caracteres)');
+        return;
     }
-    .login-row {
-        flex-direction: column;
+    
+    currentClient = name;
+    isClient = true;
+    isEmployee = false;
+    
+    clientNameInput.disabled = true;
+    btnClientEnter.disabled = true;
+    clientStatus.textContent = `✅ Conectado como: ${name}`;
+    clientStatus.style.background = '#2ecc71';
+    clientStatus.style.color = 'white';
+    
+    socket.emit('client-join', { clientName: name });
+    chatClientName.textContent = name;
+    clientePedido.textContent = name;
+    headerStatus.textContent = '🟢 online';
+    headerStatus.style.color = '#2ecc71';
+    headerStatus.style.borderColor = '#2ecc71';
+    
+    enableChat(true);
+    
+    // Mensagem automática de boas-vindas
+    setTimeout(() => {
+        addMessageToChat('👋 Olá! Bem-vindo à LD Gráfica!', 'Sistema', 'sistema');
+        addMessageToChat('📌 Descreva seu serviço:', 'Sistema', 'sistema');
+        addMessageToChat('🎯 Opções disponíveis:', 'Sistema', 'sistema');
+        addMessageToChat('• Impressão em Lona', 'Sistema', 'sistema');
+        addMessageToChat('• Impressão em Vinil', 'Sistema', 'sistema');
+        addMessageToChat('• Recorte a Laser', 'Sistema', 'sistema');
+        addMessageToChat('💬 Digite qual serviço você deseja:', 'Sistema', 'sistema');
+    }, 500);
+});
+
+// ========== FUNCIONÁRIO - Toggle login ==========
+btnToggleEmployee.addEventListener('click', () => {
+    const isVisible = employeeLoginForm.style.display !== 'none';
+    employeeLoginForm.style.display = isVisible ? 'none' : 'block';
+    btnToggleEmployee.textContent = isVisible ? '👨‍💼 Área do Funcionário' : '👨‍💼 Ocultar Login';
+});
+
+// ========== FUNCIONÁRIO - Login ==========
+btnEmployeeLogin.addEventListener('click', async () => {
+    const username = employeeUsername.value.trim();
+    const password = employeePassword.value.trim();
+    
+    if (!username || !password) {
+        employeeStatus.textContent = '❌ Preencha usuário e senha';
+        employeeStatus.style.background = '#e74c3c';
+        employeeStatus.style.color = 'white';
+        return;
     }
-    .login-row button {
-        padding: 14px;
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            isEmployee = true;
+            isClient = false;
+            currentUser = data.user;
+            employeeStatus.textContent = `✅ Logado como: ${data.user.name}`;
+            employeeStatus.style.background = '#2ecc71';
+            employeeStatus.style.color = 'white';
+            btnEmployeeLogin.disabled = true;
+            employeeUsername.disabled = true;
+            employeePassword.disabled = true;
+            
+            socket.emit('employee-join', { username, name: data.user.name });
+            headerStatus.textContent = `👨‍💼 ${data.user.name}`;
+            headerStatus.style.color = '#f5c800';
+            headerStatus.style.borderColor = '#f5c800';
+            
+            clientList.style.display = 'block';
+            enableChat(true);
+            chatClientName.textContent = 'Selecione um cliente';
+            chatStatus.textContent = '👨‍💼 funcionário';
+            chatStatus.style.background = '#f5c800';
+            chatStatus.style.color = '#0b0b0b';
+            
+            // Carregar lista de clientes
+            updateClientList();
+            
+            addMessageToChat('👋 Olá! Você está logado como funcionário.', 'Sistema', 'sistema');
+            addMessageToChat('📋 Selecione um cliente na lista para atender.', 'Sistema', 'sistema');
+        } else {
+            employeeStatus.textContent = '❌ Credenciais inválidas';
+            employeeStatus.style.background = '#e74c3c';
+            employeeStatus.style.color = 'white';
+        }
+    } catch (error) {
+        employeeStatus.textContent = '❌ Erro ao fazer login';
+        employeeStatus.style.background = '#e74c3c';
+        employeeStatus.style.color = 'white';
+        console.error(error);
     }
-    .pedido-status-area {
-        flex-direction: column;
-        gap: 12px;
+});
+
+// ========== ENVIAR MENSAGEM ==========
+btnSendChat.addEventListener('click', sendMessage);
+chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+});
+
+function sendMessage() {
+    const message = chatInput.value.trim();
+    if (!message) return;
+    
+    if (isClient && currentClient) {
+        socket.emit('client-message', { clientName: currentClient, message });
+        addMessageToChat(message, 'Cliente', 'cliente');
+        chatInput.value = '';
+        
+        // Verificar se o cliente está descrevendo o serviço
+        verificarServico(message);
+    } else if (isEmployee && currentClient) {
+        socket.emit('employee-message', { 
+            clientName: currentClient, 
+            message, 
+            employeeName: currentUser.name 
+        });
+        addMessageToChat(message, currentUser.name, 'funcionario');
+        chatInput.value = '';
     }
 }
+
+function enableChat(enable) {
+    chatInput.disabled = !enable;
+    btnSendChat.disabled = !enable;
+}
+
+function addMessageToChat(message, sender, type) {
+    const div = document.createElement('div');
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    
+    let className = 'msg';
+    if (type === 'cliente') className += ' msg-cliente';
+    else if (type === 'funcionario' || type === 'Dinho') className += ' msg-funcionario';
+    else className += ' msg-sistema';
+    
+    div.className = className;
+    div.innerHTML = `<strong>${sender}</strong> (${timestamp}): ${message}`;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// ========== VERIFICAR SERVIÇO DO CLIENTE ==========
+function verificarServico(message) {
+    const lower = message.toLowerCase();
+    const servicos = ['lona', 'vinil', 'laser', 'recorte'];
+    
+    if (servicos.some(s => lower.includes(s))) {
+        setTimeout(() => {
+            addMessageToChat('✅ Serviço identificado!', 'Sistema', 'sistema');
+            addMessageToChat('📋 Vamos confirmar seu pedido.', 'Sistema', 'sistema');
+            addMessageToChat('⏳ Em instantes a arte ficará pronta.', 'Sistema', 'sistema');
+            
+            // Atualizar painel do pedido
+            pedidoConfirmado = true;
+            statusBadge.textContent = '📋 Serviço confirmado';
+            statusBadge.className = 'status-badge';
+            tempoRestante.textContent = '⏳ aguardando arte';
+            
+            // Simular arte pronta após 10 segundos
+            setTimeout(() => {
+                avisoArtePronta.style.display = 'block';
+                pagamentoArea.style.display = 'flex';
+                statusBadge.textContent = '🎨 ARTE PRONTA';
+                addMessageToChat('🎨 Arte pronta! Realize o pagamento.', 'Sistema', 'sistema');
+                addMessageToChat('💳 Clique em "Confirmar pagamento" abaixo.', 'Sistema', 'sistema');
+            }, 10000);
+        }, 1000);
+    }
+}
+
+// ========== PAGAMENTO ==========
+btnPagar.addEventListener('click', () => {
+    if (pagamentoConfirmado) return;
+    
+    pagamentoConfirmado = true;
+    statusBadge.textContent = '🟠 EM PRODUÇÃO';
+    statusBadge.className = 'status-badge em-producao';
+    tempoRestante.textContent = '⏱️ 45 min';
+    pagamentoArea.style.display = 'none';
+    avisoArtePronta.style.display = 'none';
+    btnPagar.disabled = true;
+    
+    addMessageToChat('✅ Pagamento confirmado! Pedido em produção.', 'Sistema', 'sistema');
+    addMessageToChat('⏱️ Tempo estimado: 45 minutos.', 'Sistema', 'sistema');
+});
+
+// ========== SOCKET EVENTS ==========
+socket.on('chat-history', (messages) => {
+    chatMessages.innerHTML = '';
+    messages.forEach(msg => {
+        const type = msg.sender === 'Cliente' ? 'cliente' : 'funcionario';
+        addMessageToChat(msg.message, msg.sender, type);
+    });
+});
+
+socket.on('new-message', (data) => {
+    if (isClient && currentClient === data.clientName) {
+        const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
+        addMessageToChat(data.message, data.sender, type);
+    } else if (isEmployee) {
+        if (currentClient === data.clientName) {
+            const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
+            addMessageToChat(data.message, data.sender, type);
+        }
+        updateClientList();
+    }
+});
+
+socket.on('client-online', (data) => {
+    if (isEmployee) {
+        updateClientList();
+        addMessageToChat(`🟢 ${data.clientName} está online`, 'Sistema', 'sistema');
+    }
+});
+
+socket.on('client-offline', (data) => {
+    if (isEmployee) {
+        updateClientList();
+        addMessageToChat(`🔴 ${data.clientName} está offline`, 'Sistema', 'sistema');
+    }
+});
+
+socket.on('active-clients', (clients) => {
+    if (isEmployee) {
+        updateClientList();
+    }
+});
+
+socket.on('employee-message-sent', (data) => {
+    if (isEmployee && currentClient === data.clientName) {
+        addMessageToChat(data.message, data.sender, 'funcionario');
+    }
+});
+
+// ========== ATUALIZAR LISTA DE CLIENTES ==========
+function updateClientList() {
+    if (!isEmployee) return;
+    
+    fetch('/api/clients')
+        .then(res => res.json())
+        .then(clients => {
+            clientsContainer.innerHTML = '';
+            if (clients.length === 0) {
+                clientsContainer.innerHTML = '<p style="color: #888; text-align: center;">Nenhum cliente ainda</p>';
+                return;
+            }
+            
+            clients.forEach(client => {
+                const div = document.createElement('div');
+                div.className = 'client-item';
+                
+                // Verificar se está online
+                const isOnline = checkClientOnline(client);
+                
+                div.innerHTML = `
+                    <span>${client}</span>
+                    <span class="status ${isOnline ? 'online' : 'offline'}">${isOnline ? '🟢 online' : '🔴 offline'}</span>
+                `;
+                div.addEventListener('click', () => {
+                    currentClient = client;
+                    chatClientName.textContent = client;
+                    clientePedido.textContent = client;
+                    chatStatus.textContent = isOnline ? '🟢 online' : '🔴 offline';
+                    chatStatus.style.background = isOnline ? '#2ecc71' : '#e74c3c';
+                    chatStatus.style.color = 'white';
+                    
+                    // Carregar histórico
+                    fetch(`/api/conversations/${client}`)
+                        .then(res => res.json())
+                        .then(messages => {
+                            chatMessages.innerHTML = '';
+                            messages.forEach(msg => {
+                                const type = msg.sender === 'Cliente' ? 'cliente' : 'funcionario';
+                                addMessageToChat(msg.message, msg.sender, type);
+                            });
+                        });
+                });
+                clientsContainer.appendChild(div);
+            });
+        })
+        .catch(err => console.error('Erro ao buscar clientes:', err));
+}
+
+function checkClientOnline(clientName) {
+    // Verificação simples - o socket vai atualizar
+    return true; // Por enquanto assume online
+}
+
+// ========== INICIALIZAR ==========
+enableChat(false);
+chatClientName.textContent = 'Aguardando...';
+chatStatus.textContent = 'offline';
+
+console.log('🚀 Sistema LD Gráfica iniciado!');
+console.log('👤 Funcionário: Dinho | Senha: 123456');
+console.log('💡 Cliente: Digite seu nome e inicie o atendimento');

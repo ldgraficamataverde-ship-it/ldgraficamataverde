@@ -22,13 +22,10 @@ if (!fs.existsSync(CONVERSATIONS_DIR)) {
 // Criar arquivo de usuários se não existir
 if (!fs.existsSync(USERS_FILE)) {
     const defaultUsers = {
-        admin: {
-            password: 'admin123',
-            name: 'Administrador'
-        },
-        grafica: {
-            password: 'grafica123',
-            name: 'LD Gráfica'
+        "Dinho": {
+            password: "123456",
+            name: "Dinho",
+            role: "funcionario"
         }
     };
     fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
@@ -79,7 +76,8 @@ app.post('/api/login', (req, res) => {
             success: true, 
             user: { 
                 username, 
-                name: users[username].name 
+                name: users[username].name,
+                role: users[username].role
             } 
         });
     } else {
@@ -139,7 +137,7 @@ io.on('connection', (socket) => {
     // Mensagem do cliente
     socket.on('client-message', (data) => {
         const { clientName, message } = data;
-        const timestamp = new Date().toISOString();
+        const timestamp = new Date().toLocaleString('pt-BR');
         const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
         
         // Salvar no arquivo
@@ -158,7 +156,7 @@ io.on('connection', (socket) => {
     // Mensagem do funcionário
     socket.on('employee-message', (data) => {
         const { clientName, message, employeeName } = data;
-        const timestamp = new Date().toISOString();
+        const timestamp = new Date().toLocaleString('pt-BR');
         const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
         
         // Salvar no arquivo
@@ -199,4 +197,5 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
     console.log(`📁 Conversas salvas em: ${CONVERSATIONS_DIR}`);
+    console.log(`👤 Usuário: Dinho | Senha: 123456`);
 });
