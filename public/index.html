@@ -50,11 +50,10 @@
                 <div class="client-content">
                     <div class="status-panel">
                         <h3>Status do Pedido</h3>
-                        <div class="status-display">
-                            <span id="current-status">Aguardando</span>
-                        </div>
+                        <div class="status-display" id="current-status">Aguardando</div>
                         <div id="timer-display" style="display: none;">
                             <span id="timer-count">45:00</span>
+                            <span id="timer-date"></span>
                         </div>
                     </div>
 
@@ -94,7 +93,7 @@
                             <button class="action-btn" data-action="confirm-order">✅ Confirmar Pedido</button>
                             <button class="action-btn" data-action="confirm-payment">💰 Confirmar Pagamento</button>
                             <div class="production-time-group">
-                                <input type="number" id="production-minutes" placeholder="Minutos" class="input-field" min="1" value="45">
+                                <input type="number" id="production-minutes" placeholder="Min" class="input-field" min="1" value="45">
                                 <button class="action-btn" data-action="set-production">⏱️ Iniciar Produção</button>
                             </div>
                             <button class="action-btn" data-action="finish-production">✅ Finalizar Produção</button>
