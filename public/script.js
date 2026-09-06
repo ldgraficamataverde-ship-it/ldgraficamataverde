@@ -1,5 +1,7 @@
 const socket = io();
 
+console.log('🔄 Conectando ao servidor...');
+
 // Estado
 let currentUser = null;
 let currentClient = null;
@@ -68,25 +70,20 @@ const employeeValorCobranca = document.getElementById('employeeValorCobranca');
 const btnEnviarCobranca = document.getElementById('btnEnviarCobranca');
 const employeeCobrancaEnviada = document.getElementById('employeeCobrancaEnviada');
 
-// ===== TABS LOGIN - CORRIGIDO =====
+// ===== TABS LOGIN =====
 tabs.forEach(tab => {
     tab.addEventListener('click', function() {
-        // Remove active de todas as tabs
         tabs.forEach(t => t.classList.remove('active'));
-        // Adiciona active na tab clicada
         this.classList.add('active');
         
-        // Esconde todos os conteúdos
         tabContents.forEach(tc => tc.classList.remove('active'));
         
-        // Mostra o conteúdo correspondente
         const targetId = this.dataset.tab;
         const targetContent = document.getElementById('login' + targetId.charAt(0).toUpperCase() + targetId.slice(1));
         if (targetContent) {
             targetContent.classList.add('active');
         }
         
-        // Mostra/Esconde o formulário do funcionário
         if (targetId === 'funcionario') {
             employeeLoginForm.style.display = 'block';
         } else {
@@ -95,7 +92,6 @@ tabs.forEach(tab => {
     });
 });
 
-// Garantir que o formulário do funcionário comece escondido
 employeeLoginForm.style.display = 'none';
 
 // ===== LOGIN CLIENTE =====
@@ -105,6 +101,7 @@ clientNameInput.addEventListener('keypress', (e) => {
 });
 
 function loginCliente() {
+    console.log('🔑 Tentando login como cliente...');
     const name = clientNameInput.value.trim();
     if (name.length < 3) {
         showStatus(clientLoginStatus, 'Digite seu nome completo', 'error');
@@ -124,8 +121,8 @@ function loginCliente() {
     enableClientChat(true);
     
     showStatus(clientLoginStatus, `✅ Conectado como ${name}`, 'success');
+    console.log('✅ Cliente logado:', name);
     
-    // Iniciar fluxo do cliente
     setTimeout(() => {
         iniciarFluxoCliente();
     }, 1000);
@@ -138,6 +135,7 @@ employeePassInput.addEventListener('keypress', (e) => {
 });
 
 async function loginFuncionario() {
+    console.log('🔑 Tentando login como funcionário...');
     const username = employeeUserInput.value.trim();
     const password = employeePassInput.value.trim();
     
@@ -147,6 +145,7 @@ async function loginFuncionario() {
     }
     
     try {
+        console.log('📤 Enviando requisição de login...');
         const response = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -154,6 +153,7 @@ async function loginFuncionario() {
         });
         
         const data = await response.json();
+        console.log('📥 Resposta do login:', data);
         
         if (data.success) {
             isEmployee = true;
@@ -170,10 +170,12 @@ async function loginFuncionario() {
             showStatus(employeeLoginStatus, `✅ Logado como ${data.user.name}`, 'success');
             
             updateClientList();
+            console.log('✅ Funcionário logado:', data.user.name);
         } else {
             showStatus(employeeLoginStatus, '❌ Credenciais inválidas', 'error');
         }
     } catch (error) {
+        console.error('❌ Erro no login:', error);
         showStatus(employeeLoginStatus, '❌ Erro ao fazer login', 'error');
     }
 }
@@ -183,10 +185,13 @@ function switchScreen(screen) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     if (screen === 'client') {
         clientScreen.classList.add('active');
+        console.log('📱 Tela do cliente ativada');
     } else if (screen === 'employee') {
         employeeScreen.classList.add('active');
+        console.log('💻 Tela do funcionário ativada');
     } else {
         loginScreen.classList.add('active');
+        console.log('🔐 Tela de login ativada');
     }
 }
 
@@ -255,26 +260,21 @@ function addMessage(container, message, sender, type) {
 function iniciarFluxoCliente() {
     let etapa = 0;
     
-    // Passo 1: Descrever serviço
     msgServico.textContent = '📌 Descreva o seu serviço:';
     
-    // Listener para mensagens do cliente
     const clienteMessageHandler = (data) => {
         if (data.sender === 'Cliente' && data.clientName === currentClient) {
             if (etapa === 0) {
-                // Passo 2: Perguntar dimensões
                 setTimeout(() => {
                     addMessage(clientMessages, '📏 Quais as dimensões do seu serviço em cm?', 'Sistema', 'system');
                 }, 500);
                 etapa = 1;
             } else if (etapa === 1) {
-                // Passo 3: Análise
                 setTimeout(() => {
                     addMessage(clientMessages, '🔍 O seu serviço está sendo analisado por um de nossos funcionários.', 'Sistema', 'system');
                     addMessage(clientMessages, '⏳ Aguarde...', 'Sistema', 'system');
                 }, 500);
                 etapa = 2;
-                // Remover listener após análise
                 socket.off('new-message', clienteMessageHandler);
             }
         }
@@ -283,7 +283,6 @@ function iniciarFluxoCliente() {
 }
 
 // ===== FUNCIONÁRIO - AÇÕES =====
-// Confirmar Pedido
 btnConfirmarPedido.addEventListener('click', () => {
     if (!currentClient) return;
     pedidoConfirmado = true;
@@ -295,7 +294,6 @@ btnConfirmarPedido.addEventListener('click', () => {
     employeeStatusBadge.textContent = '📋 Pedido confirmado';
 });
 
-// Confirmar Arte
 btnConfirmarArte.addEventListener('click', () => {
     if (!currentClient || !pedidoConfirmado) return;
     arteConfirmada = true;
@@ -307,7 +305,6 @@ btnConfirmarArte.addEventListener('click', () => {
     employeeStatusBadge.textContent = '🎨 Arte pronta';
 });
 
-// Cobrar
 btnCobrar.addEventListener('click', () => {
     if (!currentClient || !arteConfirmada) return;
     employeeCobrancaInput.style.display = 'flex';
@@ -332,7 +329,6 @@ btnEnviarCobranca.addEventListener('click', () => {
     addMessage(employeeMessages, `💰 Cobrança enviada: R$ ${valorFormatado}`, 'Sistema', 'system');
 });
 
-// Pagamento Realizado
 btnPagamentoRealizado.addEventListener('click', () => {
     if (!currentClient) return;
     
@@ -346,7 +342,16 @@ btnPagamentoRealizado.addEventListener('click', () => {
 });
 
 // ===== SOCKET EVENTS =====
+socket.on('connect', () => {
+    console.log('✅ Conectado ao servidor Socket.IO');
+});
+
+socket.on('connect_error', (error) => {
+    console.error('❌ Erro de conexão:', error);
+});
+
 socket.on('chat-history', (messages) => {
+    console.log('📜 Histórico carregado:', messages.length, 'mensagens');
     if (isClient) {
         clientMessages.innerHTML = '';
         messages.forEach(msg => {
@@ -357,6 +362,7 @@ socket.on('chat-history', (messages) => {
 });
 
 socket.on('new-message', (data) => {
+    console.log('💬 Nova mensagem de', data.sender, 'para', data.clientName);
     if (isClient && currentClient === data.clientName) {
         const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
         addMessage(clientMessages, data.message, data.sender, type);
@@ -369,8 +375,13 @@ socket.on('new-message', (data) => {
     }
 });
 
+socket.on('client-join-success', (data) => {
+    console.log('✅ Cliente entrou com sucesso:', data.clientName);
+});
+
 // Eventos do pedido
 socket.on('pedido-confirmado', (data) => {
+    console.log('📋 Pedido confirmado para:', data.clientName);
     if (isClient && currentClient === data.clientName) {
         addMessage(clientMessages, '✅ Pedido confirmado!', 'Sistema', 'system');
         clientStatusBadge.textContent = '📋 Pedido confirmado';
@@ -378,6 +389,7 @@ socket.on('pedido-confirmado', (data) => {
 });
 
 socket.on('arte-confirmada', (data) => {
+    console.log('🎨 Arte confirmada para:', data.clientName);
     if (isClient && currentClient === data.clientName) {
         addMessage(clientMessages, '🎨 Arte pronta!', 'Sistema', 'system');
         clientStatusBadge.textContent = '🎨 Arte pronta';
@@ -386,6 +398,7 @@ socket.on('arte-confirmada', (data) => {
 });
 
 socket.on('cobranca-enviada', (data) => {
+    console.log('💰 Cobrança enviada para:', data.clientName, 'Valor: R$', data.valor);
     if (isClient && currentClient === data.clientName) {
         clientCobranca.style.display = 'block';
         clientValorCobranca.textContent = data.valor;
@@ -396,6 +409,7 @@ socket.on('cobranca-enviada', (data) => {
 });
 
 socket.on('pagamento-confirmado', (data) => {
+    console.log('✅ Pagamento confirmado para:', data.clientName);
     if (isClient && currentClient === data.clientName) {
         clientPagamento.style.display = 'none';
         clientCobranca.style.display = 'none';
@@ -416,6 +430,7 @@ socket.on('update-client-list', () => {
 });
 
 socket.on('client-online', (data) => {
+    console.log('🟢 Cliente online:', data.clientName);
     if (isEmployee) {
         updateClientList();
         if (currentClient === data.clientName) {
@@ -426,6 +441,7 @@ socket.on('client-online', (data) => {
 });
 
 socket.on('client-offline', (data) => {
+    console.log('🔴 Cliente offline:', data.clientName);
     if (isEmployee) {
         updateClientList();
         if (currentClient === data.clientName) {
@@ -526,7 +542,7 @@ function updateClientList() {
                 clientListContainer.appendChild(div);
             });
         })
-        .catch(err => console.error('Erro:', err));
+        .catch(err => console.error('Erro ao buscar clientes:', err));
 }
 
 // ===== LOGOUT =====
@@ -591,6 +607,8 @@ function logout() {
     document.querySelector('.tab[data-tab="cliente"]').classList.add('active');
     tabContents.forEach(tc => tc.classList.remove('active'));
     document.getElementById('loginCliente').classList.add('active');
+    
+    console.log('🔓 Logout realizado');
 }
 
 // ===== INICIAR =====
@@ -602,3 +620,4 @@ switchScreen('login');
 console.log('🚀 Sistema LD Gráfica');
 console.log('👤 Funcionário: Dinho | Senha: 123456');
 console.log('📋 Fluxo: Serviço → Dimensões → Análise → Pedido → Arte → Cobrança → Pagamento → Produção');
+console.log('💡 Abra o console do navegador (F12) para ver os logs');
