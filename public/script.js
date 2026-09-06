@@ -29,6 +29,7 @@ const employeeUserInput = document.getElementById('employeeUser');
 const employeePassInput = document.getElementById('employeePass');
 const btnEmployeeLogin = document.getElementById('btnEmployeeLogin');
 const employeeLoginStatus = document.getElementById('employeeLoginStatus');
+const employeeLoginForm = document.getElementById('employeeLoginForm');
 
 // Cliente
 const clientDisplayName = document.getElementById('clientDisplayName');
@@ -67,17 +68,35 @@ const employeeValorCobranca = document.getElementById('employeeValorCobranca');
 const btnEnviarCobranca = document.getElementById('btnEnviarCobranca');
 const employeeCobrancaEnviada = document.getElementById('employeeCobrancaEnviada');
 
-// ===== TABS LOGIN =====
+// ===== TABS LOGIN - CORRIGIDO =====
 tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
+    tab.addEventListener('click', function() {
+        // Remove active de todas as tabs
         tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
+        // Adiciona active na tab clicada
+        this.classList.add('active');
         
+        // Esconde todos os conteúdos
         tabContents.forEach(tc => tc.classList.remove('active'));
-        const target = document.getElementById(tab.dataset.tab);
-        if (target) target.classList.add('active');
+        
+        // Mostra o conteúdo correspondente
+        const targetId = this.dataset.tab;
+        const targetContent = document.getElementById('login' + targetId.charAt(0).toUpperCase() + targetId.slice(1));
+        if (targetContent) {
+            targetContent.classList.add('active');
+        }
+        
+        // Mostra/Esconde o formulário do funcionário
+        if (targetId === 'funcionario') {
+            employeeLoginForm.style.display = 'block';
+        } else {
+            employeeLoginForm.style.display = 'none';
+        }
     });
 });
+
+// Garantir que o formulário do funcionário comece escondido
+employeeLoginForm.style.display = 'none';
 
 // ===== LOGIN CLIENTE =====
 btnClientLogin.addEventListener('click', loginCliente);
@@ -105,6 +124,11 @@ function loginCliente() {
     enableClientChat(true);
     
     showStatus(clientLoginStatus, `✅ Conectado como ${name}`, 'success');
+    
+    // Iniciar fluxo do cliente
+    setTimeout(() => {
+        iniciarFluxoCliente();
+    }, 1000);
 }
 
 // ===== LOGIN FUNCIONÁRIO =====
@@ -229,36 +253,33 @@ function addMessage(container, message, sender, type) {
 
 // ===== FLUXO DO CLIENTE =====
 function iniciarFluxoCliente() {
+    let etapa = 0;
+    
     // Passo 1: Descrever serviço
     msgServico.textContent = '📌 Descreva o seu serviço:';
     
-    // Aguardar descrição do serviço
-    const descricaoHandler = (data) => {
+    // Listener para mensagens do cliente
+    const clienteMessageHandler = (data) => {
         if (data.sender === 'Cliente' && data.clientName === currentClient) {
-            // Passo 2: Perguntar dimensões
-            setTimeout(() => {
-                addMessage(clientMessages, '📏 Quais as dimensões do seu serviço em cm?', 'Sistema', 'system');
-            }, 500);
-            
-            // Remover listener após primeira mensagem
-            socket.off('new-message', descricaoHandler);
-            
-            // Aguardar resposta das dimensões
-            const dimensoesHandler = (data2) => {
-                if (data2.sender === 'Cliente' && data2.clientName === currentClient) {
-                    // Passo 3: Análise
-                    setTimeout(() => {
-                        addMessage(clientMessages, '🔍 O seu serviço está sendo analisado por um de nossos funcionários.', 'Sistema', 'system');
-                        addMessage(clientMessages, '⏳ Aguarde...', 'Sistema', 'system');
-                    }, 500);
-                    
-                    socket.off('new-message', dimensoesHandler);
-                }
-            };
-            socket.on('new-message', dimensoesHandler);
+            if (etapa === 0) {
+                // Passo 2: Perguntar dimensões
+                setTimeout(() => {
+                    addMessage(clientMessages, '📏 Quais as dimensões do seu serviço em cm?', 'Sistema', 'system');
+                }, 500);
+                etapa = 1;
+            } else if (etapa === 1) {
+                // Passo 3: Análise
+                setTimeout(() => {
+                    addMessage(clientMessages, '🔍 O seu serviço está sendo analisado por um de nossos funcionários.', 'Sistema', 'system');
+                    addMessage(clientMessages, '⏳ Aguarde...', 'Sistema', 'system');
+                }, 500);
+                etapa = 2;
+                // Remover listener após análise
+                socket.off('new-message', clienteMessageHandler);
+            }
         }
     };
-    socket.on('new-message', descricaoHandler);
+    socket.on('new-message', clienteMessageHandler);
 }
 
 // ===== FUNCIONÁRIO - AÇÕES =====
@@ -386,7 +407,6 @@ socket.on('pagamento-confirmado', (data) => {
         addMessage(clientMessages, '✅ Pagamento confirmado!', 'Sistema', 'system');
         addMessage(clientMessages, '⏱️ Serviço em produção - 45 minutos', 'Sistema', 'system');
         
-        // Iniciar timer
         iniciarTimer(45);
     }
 });
@@ -478,7 +498,6 @@ function updateClientList() {
                     employeeChatInput.disabled = false;
                     btnEmployeeSend.disabled = false;
                     
-                    // Resetar botões do funcionário
                     btnConfirmarPedido.classList.remove('active');
                     btnConfirmarArte.classList.remove('active');
                     btnConfirmarArte.disabled = true;
@@ -564,6 +583,7 @@ function logout() {
     clientLoginStatus.className = 'status-msg';
     employeeLoginStatus.className = 'status-msg';
     msgServico.textContent = '📌 Descreva o seu serviço:';
+    employeeLoginForm.style.display = 'none';
     
     switchScreen('login');
     
@@ -578,15 +598,6 @@ enableClientChat(false);
 employeeChatInput.disabled = true;
 btnEmployeeSend.disabled = true;
 switchScreen('login');
-
-// Iniciar fluxo quando cliente entrar
-socket.on('client-join-success', () => {
-    if (isClient) {
-        setTimeout(() => {
-            iniciarFluxoCliente();
-        }, 1000);
-    }
-});
 
 console.log('🚀 Sistema LD Gráfica');
 console.log('👤 Funcionário: Dinho | Senha: 123456');
