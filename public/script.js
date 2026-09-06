@@ -6,6 +6,7 @@ let clientId = null;
 let selectedClientId = null;
 let timerInterval = null;
 let timerSeconds = 0;
+let clientsList = [];
 
 // DOM Elements
 const loginScreen = document.getElementById('login-screen');
@@ -173,7 +174,7 @@ socket.on('conversation-update', (message) => {
 
 socket.on('status-update', (status) => {
     currentStatus.textContent = status;
-    currentStatus.className = status.toLowerCase().replace(' ', '-');
+    currentStatus.className = status.toLowerCase().replace(/ /g, '-');
 });
 
 socket.on('production-timer', (minutes) => {
@@ -201,6 +202,7 @@ socket.on('employee-login-error', (error) => {
 });
 
 socket.on('client-list-update', (clients) => {
+    clientsList = clients;
     renderClientList(clients);
 });
 
@@ -258,14 +260,24 @@ function addMessageToEmployeeChat(message) {
 
 function renderClientList(clients) {
     clientListContainer.innerHTML = '';
+    
+    if (!clients || clients.length === 0) {
+        clientListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Nenhum cliente online</div>';
+        return;
+    }
+    
     clients.forEach(client => {
         const div = document.createElement('div');
         div.className = `client-item${selectedClientId === client.id ? ' active' : ''}`;
         
+        // Formatar status para exibição
+        const statusDisplay = client.status || 'Aguardando';
+        const statusClass = statusDisplay.toLowerCase().replace(/ /g, '-');
+        
         div.innerHTML = `
             <div class="client-name">${client.name}</div>
             <div class="client-status">
-                Status: <span class="status-badge ${client.status.toLowerCase().replace(' ', '-')}">${client.status}</span>
+                Status: <span class="status-badge ${statusClass}">${statusDisplay}</span>
             </div>
         `;
         
@@ -279,16 +291,18 @@ function renderClientList(clients) {
 
 function selectClient(clientId) {
     selectedClientId = clientId;
-    const client = Object.values(clients).find(c => c.id === clientId);
+    
+    // Buscar o cliente na lista global
+    const client = clientsList.find(c => c.id === clientId);
     if (client) {
         selectedClientName.textContent = client.name;
     }
     
-    // Atualizar lista
+    // Atualizar lista visual
     const items = clientListContainer.querySelectorAll('.client-item');
     items.forEach(item => {
         const name = item.querySelector('.client-name').textContent;
-        if (name === client.name) {
+        if (client && name === client.name) {
             item.classList.add('active');
         } else {
             item.classList.remove('active');
@@ -319,7 +333,7 @@ function startTimer() {
             clearInterval(timerInterval);
             timerInterval = null;
             timerCount.textContent = '00:00';
-            socket.emit('production-finished');
+            socket.emit('finish-production', selectedClientId || socket.clientId);
         } else {
             const minutes = Math.floor(timerSeconds / 60);
             const seconds = timerSeconds % 60;
@@ -349,6 +363,7 @@ function resetApp() {
     userType = null;
     clientId = null;
     selectedClientId = null;
+    clientsList = [];
     
     if (timerInterval) {
         clearInterval(timerInterval);
@@ -367,6 +382,10 @@ function resetApp() {
     employeeSendBtn.disabled = true;
     employeeChatInput.value = '';
     chatInput.value = '';
+    clientNameInput.value = '';
+    employeeUsername.value = '';
+    employeePassword.value = '';
+    employeeError.textContent = '';
 }
 
 // Inicializar
@@ -374,4 +393,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loginScreen.style.display = 'flex';
     clientScreen.style.display = 'none';
     employeeScreen.style.display = 'none';
+});
+
+// Quando a página recarregar, resetar tudo
+window.addEventListener('beforeunload', () => {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
 });
