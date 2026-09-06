@@ -7,6 +7,7 @@ let selectedClientId = null;
 let timerInterval = null;
 let timerSeconds = 0;
 let clientsList = [];
+let attendanceFinished = false;
 
 // DOM Elements
 const loginScreen = document.getElementById('login-screen');
@@ -64,6 +65,7 @@ clientLoginBtn.addEventListener('click', () => {
     const name = clientNameInput.value.trim();
     if (name) {
         userType = 'client';
+        attendanceFinished = false;
         socket.emit('client-login', { name });
     }
 });
@@ -99,16 +101,20 @@ employeePassword.addEventListener('keypress', (e) => {
 clientLogout.addEventListener('click', resetApp);
 
 chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && chatInput.value.trim()) {
+    if (e.key === 'Enter' && chatInput.value.trim() && !attendanceFinished) {
         sendClientMessage();
     }
 });
 
-sendBtn.addEventListener('click', sendClientMessage);
+sendBtn.addEventListener('click', () => {
+    if (!attendanceFinished) {
+        sendClientMessage();
+    }
+});
 
 function sendClientMessage() {
     const text = chatInput.value.trim();
-    if (text && userType === 'client') {
+    if (text && userType === 'client' && !attendanceFinished) {
         socket.emit('client-message', { text });
         chatInput.value = '';
     }
@@ -156,6 +162,11 @@ document.querySelectorAll('.action-btn').forEach(btn => {
             case 'finish-production':
                 socket.emit('finish-production', selectedClientId);
                 break;
+            case 'finish-attendance':
+                if (confirm('Tem certeza que deseja finalizar o atendimento deste cliente?')) {
+                    socket.emit('finish-attendance', selectedClientId);
+                }
+                break;
         }
     });
 });
@@ -166,16 +177,27 @@ socket.on('conversation-history', (messages) => {
     chatMessages.innerHTML = '';
     messages.forEach(msg => addMessageToChat(msg));
     scrollToBottom(chatMessages);
+    attendanceFinished = false;
 });
 
 socket.on('conversation-update', (message) => {
-    addMessageToChat(message);
-    scrollToBottom(chatMessages);
+    if (!attendanceFinished) {
+        addMessageToChat(message);
+        scrollToBottom(chatMessages);
+    }
 });
 
 socket.on('status-update', (status) => {
     currentStatus.textContent = status;
     currentStatus.className = status.toLowerCase().replace(/ /g, '-');
+    
+    // Se o status for "Atendimento Finalizado", bloquear o chat
+    if (status === 'Atendimento Finalizado') {
+        attendanceFinished = true;
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
+        chatInput.placeholder = 'Atendimento finalizado';
+    }
 });
 
 socket.on('production-timer', (minutes) => {
@@ -190,6 +212,23 @@ socket.on('production-finished', () => {
         clearInterval(timerInterval);
         timerInterval = null;
     }
+});
+
+socket.on('attendance-finished', () => {
+    attendanceFinished = true;
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    chatInput.placeholder = 'Atendimento finalizado';
+    
+    // Mostrar mensagem de agradecimento
+    const div = document.createElement('div');
+    div.className = 'message system';
+    div.innerHTML = `
+        <span>✅ Atendimento finalizado! Obrigado pela preferência! 🙏</span>
+        <span class="timestamp">${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+    `;
+    chatMessages.appendChild(div);
+    scrollToBottom(chatMessages);
 });
 
 // Socket.IO - Eventos do Funcionário
@@ -207,7 +246,6 @@ socket.on('client-list-update', (clients) => {
     renderClientList(clients);
 });
 
-// Evento para receber o histórico completo da conversa do cliente selecionado
 socket.on('employee-conversation-history', (data) => {
     if (selectedClientId === data.clientId) {
         employeeChatMessages.innerHTML = '';
@@ -221,6 +259,22 @@ socket.on('employee-conversation-update', (data) => {
         addMessageToEmployeeChat(data.message);
         scrollToBottom(employeeChatMessages);
     }
+});
+
+socket.on('attendance-finished-confirm', (data) => {
+    // Limpar seleção do cliente
+    selectedClientId = null;
+    selectedClientName.textContent = 'Selecione um cliente';
+    employeeChatMessages.innerHTML = '';
+    employeeActions.style.display = 'none';
+    employeeChatInput.disabled = true;
+    employeeSendBtn.disabled = true;
+    
+    // Mostrar mensagem de confirmação
+    const div = document.createElement('div');
+    div.className = 'message system';
+    div.textContent = `✅ ${data.message}`;
+    employeeChatMessages.appendChild(div);
 });
 
 // Funções auxiliares
@@ -272,7 +326,7 @@ function renderClientList(clients) {
     clientListContainer.innerHTML = '';
     
     if (!clients || clients.length === 0) {
-        clientListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Nenhum cliente online</div>';
+        clientListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Nenhum cliente ativo</div>';
         return;
     }
     
@@ -280,7 +334,6 @@ function renderClientList(clients) {
         const div = document.createElement('div');
         div.className = `client-item${selectedClientId === client.id ? ' active' : ''}`;
         
-        // Formatar status para exibição
         const statusDisplay = client.status || 'Aguardando';
         const statusClass = statusDisplay.toLowerCase().replace(/ /g, '-');
         
@@ -302,13 +355,11 @@ function renderClientList(clients) {
 function selectClient(clientId) {
     selectedClientId = clientId;
     
-    // Buscar o cliente na lista global
     const client = clientsList.find(c => c.id === clientId);
     if (client) {
         selectedClientName.textContent = client.name;
     }
     
-    // Atualizar lista visual
     const items = clientListContainer.querySelectorAll('.client-item');
     items.forEach(item => {
         const name = item.querySelector('.client-name').textContent;
@@ -319,15 +370,12 @@ function selectClient(clientId) {
         }
     });
     
-    // Ativar ações
     employeeActions.style.display = 'flex';
     employeeChatInput.disabled = false;
     employeeSendBtn.disabled = false;
     
-    // Limpar chat
     employeeChatMessages.innerHTML = '';
     
-    // Solicitar histórico completo do cliente
     socket.emit('employee-select-client', clientId);
 }
 
@@ -340,7 +388,6 @@ function startTimer() {
         clearInterval(timerInterval);
     }
     
-    // Atualizar data/hora inicial
     updateTimerDate();
     
     timerInterval = setInterval(() => {
@@ -349,14 +396,12 @@ function startTimer() {
             clearInterval(timerInterval);
             timerInterval = null;
             timerCount.textContent = '00:00';
-            // Atualizar data final
             updateTimerDate();
             socket.emit('finish-production', selectedClientId || socket.clientId);
         } else {
             const minutes = Math.floor(timerSeconds / 60);
             const seconds = timerSeconds % 60;
             timerCount.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            // Atualizar data a cada minuto
             if (seconds === 0) {
                 updateTimerDate();
             }
@@ -385,6 +430,7 @@ function showClientScreen() {
     employeeScreen.style.display = 'none';
     chatInput.disabled = false;
     sendBtn.disabled = false;
+    attendanceFinished = false;
 }
 
 function showEmployeeScreen() {
@@ -401,13 +447,13 @@ function resetApp() {
     clientId = null;
     selectedClientId = null;
     clientsList = [];
+    attendanceFinished = false;
     
     if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
     }
     
-    // Resetar campos
     chatMessages.innerHTML = '';
     employeeChatMessages.innerHTML = '';
     clientListContainer.innerHTML = '';
@@ -419,6 +465,7 @@ function resetApp() {
     employeeSendBtn.disabled = true;
     employeeChatInput.value = '';
     chatInput.value = '';
+    chatInput.placeholder = 'Digite sua mensagem...';
     clientNameInput.value = '';
     employeeUsername.value = '';
     employeePassword.value = '';
@@ -433,7 +480,6 @@ document.addEventListener('DOMContentLoaded', () => {
     employeeScreen.style.display = 'none';
 });
 
-// Quando a página recarregar, resetar tudo
 window.addEventListener('beforeunload', () => {
     if (timerInterval) {
         clearInterval(timerInterval);
