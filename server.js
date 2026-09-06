@@ -40,6 +40,16 @@ function loadConversation(clientId) {
     if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, 'utf8');
         return content.split('\n').filter(line => line.trim()).map(line => {
+            // Extrair timestamp, tipo e texto
+            const match = line.match(/\[(.*?)\]\s+(.*?):\s+(.*)/);
+            if (match) {
+                return {
+                    timestamp: match[1],
+                    type: match[2],
+                    text: match[3]
+                };
+            }
+            // Fallback para formato antigo
             const [timestamp, type, ...textParts] = line.replace(/[\[\]]/g, '').split(' ');
             return {
                 timestamp,
@@ -122,6 +132,7 @@ io.on('connection', (socket) => {
         updateClientList();
         
         console.log(`Cliente logado: ${clientName} (${clientId}) - Status: ${currentStatus}`);
+        console.log(`Conversa tem ${conversations[clientId].length} mensagens`);
     });
 
     // Login do funcionário
@@ -141,6 +152,30 @@ io.on('connection', (socket) => {
         } else {
             socket.emit('employee-login-error', 'Usuário ou senha incorretos');
         }
+    });
+
+    // Funcionário: selecionar cliente e ver histórico
+    socket.on('employee-select-client', (clientId) => {
+        if (!clientId) return;
+        
+        // Verificar se o cliente existe
+        if (!clients[clientId]) {
+            socket.emit('employee-client-error', 'Cliente não encontrado');
+            return;
+        }
+        
+        // Carregar conversa se não estiver em memória
+        if (!conversations[clientId]) {
+            conversations[clientId] = loadConversation(clientId);
+        }
+        
+        // Enviar histórico completo para o funcionário
+        socket.emit('employee-conversation-history', {
+            clientId: clientId,
+            messages: conversations[clientId] || []
+        });
+        
+        console.log(`Funcionário visualizando cliente: ${clientId} - ${conversations[clientId].length} mensagens`);
     });
 
     // Mensagem do cliente
