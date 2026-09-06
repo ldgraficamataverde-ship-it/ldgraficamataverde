@@ -312,18 +312,38 @@ io.on('connection', (socket) => {
         console.log(`Pagamento confirmado para ${clientId}`);
     });
 
-    // Funcionário: definir tempo de produção
+    // Funcionário: definir tempo de produção com data/hora
     socket.on('set-production-time', (data) => {
-        const { clientId, minutes } = data;
+        const { clientId, datetime } = data;
         if (!clients[clientId]) return;
+        
+        // Converter a data para timestamp
+        const productionDate = new Date(datetime);
+        const now = new Date();
+        
+        // Calcular minutos restantes
+        const diffMinutes = Math.floor((productionDate - now) / (1000 * 60));
+        
+        // Se a data for no passado, usar 1 minuto
+        const minutes = Math.max(diffMinutes, 1);
         
         clientStatus[clientId] = 'Em Produção';
         clients[clientId].status = 'Em Produção';
         
+        // Formatar data para exibição
+        const formattedDate = productionDate.toLocaleDateString('pt-BR', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
         const message = {
             timestamp: new Date().toISOString(),
             type: 'system',
-            text: `⏱️ Em produção - ${minutes} minutos`
+            text: `⏱️ Em produção - Previsão de entrega: ${formattedDate}`
         };
         
         conversations[clientId].push(message);
@@ -332,10 +352,14 @@ io.on('connection', (socket) => {
         io.to(clientId).emit('conversation-update', message);
         io.to(clientId).emit('status-update', 'Em Produção');
         io.to(clientId).emit('production-timer', minutes);
+        io.to(clientId).emit('production-datetime', {
+            datetime: datetime,
+            formatted: formattedDate
+        });
         
         updateClientList();
         
-        console.log(`Produção iniciada para ${clientId}: ${minutes} minutos`);
+        console.log(`Produção iniciada para ${clientId} - Previsão: ${formattedDate} (${minutes} minutos)`);
     });
 
     // Funcionário: finalizar produção
