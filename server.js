@@ -6,15 +6,18 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
+
+// Configuração do Socket.IO para produção
 const io = socketIo(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
     },
-    transports: ['polling', 'websocket']
+    transports: ['polling', 'websocket'],
+    allowEIO3: true
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Pastas e arquivos
 const CONVERSATIONS_DIR = path.join(__dirname, 'conversations');
@@ -101,6 +104,11 @@ app.post('/api/login', (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: 'Erro interno' });
     }
+});
+
+// Rota de teste
+app.get('/api/test', (req, res) => {
+    res.json({ message: 'API funcionando!' });
 });
 
 // Socket.IO
@@ -237,7 +245,7 @@ io.on('connection', (socket) => {
 server.listen(PORT, '0.0.0.0', () => {
     console.log('\n🚀 ==================================');
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    console.log(`🔗 Acesse: http://localhost:${PORT}`);
+    console.log(`🔗 Acesse: https://${process.env.RAILWAY_STATIC_URL || 'localhost:' + PORT}`);
     console.log('👤 Funcionário: Dinho | Senha: 123456');
     console.log('📁 Conversas salvas em:', CONVERSATIONS_DIR);
     console.log('🚀 ==================================\n');
