@@ -61,6 +61,8 @@
                         <div id="chat-messages" class="chat-messages"></div>
                         <div class="chat-input">
                             <input type="text" id="chat-input" placeholder="Digite sua mensagem...">
+                            <label for="image-upload" class="image-upload-btn" title="Enviar imagem">📷</label>
+                            <input type="file" id="image-upload" accept="image/*" style="display: none;">
                             <button id="send-btn">Enviar</button>
                         </div>
                     </div>
@@ -102,8 +104,10 @@
                             <button class="action-btn finish-attendance" data-action="finish-attendance">🔚 Finalizar Atendimento</button>
                         </div>
 
-                        <div class="chat-input">
+                        <div class="chat-input employee-chat-input-wrapper">
                             <input type="text" id="employee-chat-input" placeholder="Digite sua mensagem..." disabled>
+                            <label for="employee-image-upload" class="image-upload-btn" title="Enviar imagem">📷</label>
+                            <input type="file" id="employee-image-upload" accept="image/*" style="display: none;">
                             <button id="employee-send-btn" disabled>Enviar</button>
                         </div>
                     </div>
