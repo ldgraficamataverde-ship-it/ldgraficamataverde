@@ -32,6 +32,7 @@ const sendBtn = document.getElementById('send-btn');
 const currentStatus = document.getElementById('current-status');
 const timerDisplay = document.getElementById('timer-display');
 const timerCount = document.getElementById('timer-count');
+const timerDate = document.getElementById('timer-date');
 
 // Funcionário
 const employeeLogout = document.getElementById('employee-logout');
@@ -327,19 +328,43 @@ function startTimer() {
         clearInterval(timerInterval);
     }
     
+    // Atualizar data/hora inicial
+    updateTimerDate();
+    
     timerInterval = setInterval(() => {
         timerSeconds--;
         if (timerSeconds <= 0) {
             clearInterval(timerInterval);
             timerInterval = null;
             timerCount.textContent = '00:00';
+            // Atualizar data final
+            updateTimerDate();
             socket.emit('finish-production', selectedClientId || socket.clientId);
         } else {
             const minutes = Math.floor(timerSeconds / 60);
             const seconds = timerSeconds % 60;
             timerCount.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            // Atualizar data a cada minuto
+            if (seconds === 0) {
+                updateTimerDate();
+            }
         }
     }, 1000);
+}
+
+function updateTimerDate() {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    if (timerDate) {
+        timerDate.textContent = `📅 ${dateStr}`;
+    }
 }
 
 function showClientScreen() {
