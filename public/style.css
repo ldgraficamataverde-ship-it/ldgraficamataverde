@@ -222,38 +222,39 @@ body {
     margin-bottom: 8px;
 }
 
-.status-display {
+#current-status {
     padding: 12px;
     background: var(--bg-tertiary);
     border-radius: 8px;
     text-align: center;
     font-size: 1.2rem;
     font-weight: 600;
+    display: block;
 }
 
 /* Cores para cada status - Cliente */
-.status-display.aguardando {
+#current-status.aguardando {
     color: #9e9e9e;
     border-left: 4px solid #9e9e9e;
 }
 
-.status-display.pedido-confirmado {
+#current-status.pedido-confirmado {
     color: #42a5f5;
     border-left: 4px solid #42a5f5;
 }
 
-.status-display.pagamento-confirmado {
+#current-status.pagamento-confirmado {
     color: #66bb6a;
     border-left: 4px solid #66bb6a;
 }
 
-.status-display.em-produção {
+#current-status.em-produção {
     color: #ffa726;
     border-left: 4px solid #ffa726;
     animation: pulse-status 2s ease-in-out infinite;
 }
 
-.status-display.pronto-para-retirada {
+#current-status.pronto-para-retirada {
     color: #ab47bc;
     border-left: 4px solid #ab47bc;
 }
