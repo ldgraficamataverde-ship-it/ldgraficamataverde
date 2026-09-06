@@ -1,4 +1,6 @@
-const socket = io();
+const socket = io('http://localhost:3000', {
+    transports: ['polling', 'websocket']
+});
 
 console.log('🔄 Conectando ao servidor...');
 
@@ -10,23 +12,19 @@ let isClient = false;
 let pedidoConfirmado = false;
 let arteConfirmada = false;
 let pagamentoConfirmado = false;
-let cobrancaEnviada = false;
 let timerInterval = null;
 
 // ===== DOM ELEMENTS =====
-// Login
 const loginScreen = document.getElementById('loginScreen');
 const clientScreen = document.getElementById('clientScreen');
 const employeeScreen = document.getElementById('employeeScreen');
+
+// Login
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
-
-// Login Cliente
 const clientNameInput = document.getElementById('clientName');
 const btnClientLogin = document.getElementById('btnClientLogin');
 const clientLoginStatus = document.getElementById('clientLoginStatus');
-
-// Login Funcionário
 const employeeUserInput = document.getElementById('employeeUser');
 const employeePassInput = document.getElementById('employeePass');
 const btnEmployeeLogin = document.getElementById('btnEmployeeLogin');
@@ -70,19 +68,16 @@ const employeeValorCobranca = document.getElementById('employeeValorCobranca');
 const btnEnviarCobranca = document.getElementById('btnEnviarCobranca');
 const employeeCobrancaEnviada = document.getElementById('employeeCobrancaEnviada');
 
-// ===== TABS LOGIN =====
+// ===== TABS =====
 tabs.forEach(tab => {
     tab.addEventListener('click', function() {
         tabs.forEach(t => t.classList.remove('active'));
         this.classList.add('active');
-        
         tabContents.forEach(tc => tc.classList.remove('active'));
         
         const targetId = this.dataset.tab;
         const targetContent = document.getElementById('login' + targetId.charAt(0).toUpperCase() + targetId.slice(1));
-        if (targetContent) {
-            targetContent.classList.add('active');
-        }
+        if (targetContent) targetContent.classList.add('active');
         
         if (targetId === 'funcionario') {
             employeeLoginForm.style.display = 'block';
@@ -94,6 +89,43 @@ tabs.forEach(tab => {
 
 employeeLoginForm.style.display = 'none';
 
+// ===== FUNÇÕES AUXILIARES =====
+function showStatus(element, message, type) {
+    element.textContent = message;
+    element.className = 'status-msg show ' + type;
+}
+
+function switchScreen(screen) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    if (screen === 'client') {
+        clientScreen.classList.add('active');
+    } else if (screen === 'employee') {
+        employeeScreen.classList.add('active');
+    } else {
+        loginScreen.classList.add('active');
+    }
+}
+
+function addMessage(container, message, sender, type) {
+    const div = document.createElement('div');
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    
+    let className = 'msg';
+    if (type === 'cliente') className += ' msg-cliente';
+    else if (type === 'funcionario') className += ' msg-funcionario';
+    else className += ' msg-system';
+    
+    div.className = className;
+    div.innerHTML = `<strong>${sender}</strong> (${timestamp}): ${message}`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function enableClientChat(enable) {
+    clientChatInput.disabled = !enable;
+    btnClientSend.disabled = !enable;
+}
+
 // ===== LOGIN CLIENTE =====
 btnClientLogin.addEventListener('click', loginCliente);
 clientNameInput.addEventListener('keypress', (e) => {
@@ -101,7 +133,6 @@ clientNameInput.addEventListener('keypress', (e) => {
 });
 
 function loginCliente() {
-    console.log('🔑 Tentando login como cliente...');
     const name = clientNameInput.value.trim();
     if (name.length < 3) {
         showStatus(clientLoginStatus, 'Digite seu nome completo', 'error');
@@ -121,11 +152,6 @@ function loginCliente() {
     enableClientChat(true);
     
     showStatus(clientLoginStatus, `✅ Conectado como ${name}`, 'success');
-    console.log('✅ Cliente logado:', name);
-    
-    setTimeout(() => {
-        iniciarFluxoCliente();
-    }, 1000);
 }
 
 // ===== LOGIN FUNCIONÁRIO =====
@@ -135,7 +161,6 @@ employeePassInput.addEventListener('keypress', (e) => {
 });
 
 async function loginFuncionario() {
-    console.log('🔑 Tentando login como funcionário...');
     const username = employeeUserInput.value.trim();
     const password = employeePassInput.value.trim();
     
@@ -145,7 +170,6 @@ async function loginFuncionario() {
     }
     
     try {
-        console.log('📤 Enviando requisição de login...');
         const response = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -153,7 +177,6 @@ async function loginFuncionario() {
         });
         
         const data = await response.json();
-        console.log('📥 Resposta do login:', data);
         
         if (data.success) {
             isEmployee = true;
@@ -170,38 +193,15 @@ async function loginFuncionario() {
             showStatus(employeeLoginStatus, `✅ Logado como ${data.user.name}`, 'success');
             
             updateClientList();
-            console.log('✅ Funcionário logado:', data.user.name);
         } else {
             showStatus(employeeLoginStatus, '❌ Credenciais inválidas', 'error');
         }
     } catch (error) {
-        console.error('❌ Erro no login:', error);
         showStatus(employeeLoginStatus, '❌ Erro ao fazer login', 'error');
     }
 }
 
-// ===== TROCAR TELA =====
-function switchScreen(screen) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    if (screen === 'client') {
-        clientScreen.classList.add('active');
-        console.log('📱 Tela do cliente ativada');
-    } else if (screen === 'employee') {
-        employeeScreen.classList.add('active');
-        console.log('💻 Tela do funcionário ativada');
-    } else {
-        loginScreen.classList.add('active');
-        console.log('🔐 Tela de login ativada');
-    }
-}
-
-// ===== STATUS =====
-function showStatus(element, message, type) {
-    element.textContent = message;
-    element.className = 'status-msg show ' + type;
-}
-
-// ===== CLIENTE - ENVIAR MENSAGEM =====
+// ===== ENVIAR MENSAGENS =====
 btnClientSend.addEventListener('click', sendClientMessage);
 clientChatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendClientMessage();
@@ -216,12 +216,6 @@ function sendClientMessage() {
     clientChatInput.value = '';
 }
 
-function enableClientChat(enable) {
-    clientChatInput.disabled = !enable;
-    btnClientSend.disabled = !enable;
-}
-
-// ===== FUNCIONÁRIO - ENVIAR MENSAGEM =====
 btnEmployeeSend.addEventListener('click', sendEmployeeMessage);
 employeeChatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendEmployeeMessage();
@@ -238,48 +232,6 @@ function sendEmployeeMessage() {
     });
     addMessage(employeeMessages, message, currentUser.name, 'funcionario');
     employeeChatInput.value = '';
-}
-
-// ===== ADICIONAR MENSAGEM =====
-function addMessage(container, message, sender, type) {
-    const div = document.createElement('div');
-    const timestamp = new Date().toLocaleTimeString('pt-BR');
-    
-    let className = 'msg';
-    if (type === 'cliente') className += ' msg-cliente';
-    else if (type === 'funcionario') className += ' msg-funcionario';
-    else className += ' msg-system';
-    
-    div.className = className;
-    div.innerHTML = `<strong>${sender}</strong> (${timestamp}): ${message}`;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
-}
-
-// ===== FLUXO DO CLIENTE =====
-function iniciarFluxoCliente() {
-    let etapa = 0;
-    
-    msgServico.textContent = '📌 Descreva o seu serviço:';
-    
-    const clienteMessageHandler = (data) => {
-        if (data.sender === 'Cliente' && data.clientName === currentClient) {
-            if (etapa === 0) {
-                setTimeout(() => {
-                    addMessage(clientMessages, '📏 Quais as dimensões do seu serviço em cm?', 'Sistema', 'system');
-                }, 500);
-                etapa = 1;
-            } else if (etapa === 1) {
-                setTimeout(() => {
-                    addMessage(clientMessages, '🔍 O seu serviço está sendo analisado por um de nossos funcionários.', 'Sistema', 'system');
-                    addMessage(clientMessages, '⏳ Aguarde...', 'Sistema', 'system');
-                }, 500);
-                etapa = 2;
-                socket.off('new-message', clienteMessageHandler);
-            }
-        }
-    };
-    socket.on('new-message', clienteMessageHandler);
 }
 
 // ===== FUNCIONÁRIO - AÇÕES =====
@@ -341,120 +293,23 @@ btnPagamentoRealizado.addEventListener('click', () => {
     employeeTempo.textContent = '⏱️ 45 min';
 });
 
-// ===== SOCKET EVENTS =====
-socket.on('connect', () => {
-    console.log('✅ Conectado ao servidor Socket.IO');
-});
-
-socket.on('connect_error', (error) => {
-    console.error('❌ Erro de conexão:', error);
-});
-
-socket.on('chat-history', (messages) => {
-    console.log('📜 Histórico carregado:', messages.length, 'mensagens');
-    if (isClient) {
-        clientMessages.innerHTML = '';
-        messages.forEach(msg => {
-            const type = msg.sender === 'Cliente' ? 'cliente' : 'funcionario';
-            addMessage(clientMessages, msg.message, msg.sender, type);
-        });
-    }
-});
-
-socket.on('new-message', (data) => {
-    console.log('💬 Nova mensagem de', data.sender, 'para', data.clientName);
-    if (isClient && currentClient === data.clientName) {
-        const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
-        addMessage(clientMessages, data.message, data.sender, type);
-    } else if (isEmployee) {
-        if (currentClient === data.clientName) {
-            const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
-            addMessage(employeeMessages, data.message, data.sender, type);
-        }
-        updateClientList();
-    }
-});
-
-socket.on('client-join-success', (data) => {
-    console.log('✅ Cliente entrou com sucesso:', data.clientName);
-});
-
-// Eventos do pedido
-socket.on('pedido-confirmado', (data) => {
-    console.log('📋 Pedido confirmado para:', data.clientName);
-    if (isClient && currentClient === data.clientName) {
-        addMessage(clientMessages, '✅ Pedido confirmado!', 'Sistema', 'system');
-        clientStatusBadge.textContent = '📋 Pedido confirmado';
-    }
-});
-
-socket.on('arte-confirmada', (data) => {
-    console.log('🎨 Arte confirmada para:', data.clientName);
-    if (isClient && currentClient === data.clientName) {
-        addMessage(clientMessages, '🎨 Arte pronta!', 'Sistema', 'system');
-        clientStatusBadge.textContent = '🎨 Arte pronta';
-        clientArtePronta.style.display = 'block';
-    }
-});
-
-socket.on('cobranca-enviada', (data) => {
-    console.log('💰 Cobrança enviada para:', data.clientName, 'Valor: R$', data.valor);
-    if (isClient && currentClient === data.clientName) {
-        clientCobranca.style.display = 'block';
-        clientValorCobranca.textContent = data.valor;
-        clientPagamento.style.display = 'flex';
-        clientArtePronta.style.display = 'none';
-        addMessage(clientMessages, `💰 Valor do serviço: R$ ${data.valor}`, 'Sistema', 'system');
-    }
-});
-
-socket.on('pagamento-confirmado', (data) => {
-    console.log('✅ Pagamento confirmado para:', data.clientName);
-    if (isClient && currentClient === data.clientName) {
-        clientPagamento.style.display = 'none';
-        clientCobranca.style.display = 'none';
-        clientProducao.style.display = 'block';
-        clientStatusBadge.textContent = '🟠 EM PRODUÇÃO';
-        clientStatusBadge.className = 'status-badge em-producao';
-        clientTempo.textContent = '⏱️ 45 min';
-        
-        addMessage(clientMessages, '✅ Pagamento confirmado!', 'Sistema', 'system');
-        addMessage(clientMessages, '⏱️ Serviço em produção - 45 minutos', 'Sistema', 'system');
-        
-        iniciarTimer(45);
-    }
-});
-
-socket.on('update-client-list', () => {
-    if (isEmployee) updateClientList();
-});
-
-socket.on('client-online', (data) => {
-    console.log('🟢 Cliente online:', data.clientName);
-    if (isEmployee) {
-        updateClientList();
-        if (currentClient === data.clientName) {
-            employeeClientStatus.textContent = '🟢 online';
-            employeeClientStatus.className = 'status-badge online';
-        }
-    }
-});
-
-socket.on('client-offline', (data) => {
-    console.log('🔴 Cliente offline:', data.clientName);
-    if (isEmployee) {
-        updateClientList();
-        if (currentClient === data.clientName) {
-            employeeClientStatus.textContent = '🔴 offline';
-            employeeClientStatus.className = 'status-badge';
-        }
-    }
-});
-
-socket.on('employee-message-sent', (data) => {
-    if (isEmployee && currentClient === data.clientName) {
-        addMessage(employeeMessages, data.message, data.sender, 'funcionario');
-    }
+// ===== CLIENTE - PAGAR =====
+btnClientPagar.addEventListener('click', () => {
+    if (pagamentoConfirmado) return;
+    
+    pagamentoConfirmado = true;
+    clientPagamento.style.display = 'none';
+    clientCobranca.style.display = 'none';
+    clientProducao.style.display = 'block';
+    clientStatusBadge.textContent = '🟠 EM PRODUÇÃO';
+    clientStatusBadge.className = 'status-badge em-producao';
+    clientTempo.textContent = '⏱️ 45 min';
+    btnClientPagar.disabled = true;
+    
+    addMessage(clientMessages, '✅ Pagamento confirmado!', 'Sistema', 'system');
+    addMessage(clientMessages, '⏱️ Serviço em produção - 45 minutos', 'Sistema', 'system');
+    
+    iniciarTimer(45);
 });
 
 // ===== TIMER =====
@@ -492,17 +347,14 @@ function updateClientList() {
                 return;
             }
             
-            clients.forEach((client, index) => {
+            clients.forEach((client) => {
                 const div = document.createElement('div');
                 div.className = 'client-item';
                 if (client === currentClient) div.classList.add('active');
                 
-                const isNew = index === 0;
-                
                 div.innerHTML = `
                     <span class="name">${client}</span>
                     <span class="status-dot online"></span>
-                    ${isNew ? '<span class="badge-novo">NOVO</span>' : ''}
                 `;
                 
                 div.addEventListener('click', () => {
@@ -524,7 +376,6 @@ function updateClientList() {
                     employeeCobrancaEnviada.style.display = 'none';
                     pedidoConfirmado = false;
                     arteConfirmada = false;
-                    cobrancaEnviada = false;
                     
                     fetch(`/api/conversations/${client}`)
                         .then(res => res.json())
@@ -542,8 +393,122 @@ function updateClientList() {
                 clientListContainer.appendChild(div);
             });
         })
-        .catch(err => console.error('Erro ao buscar clientes:', err));
+        .catch(err => console.error('Erro:', err));
 }
+
+// ===== SOCKET EVENTS =====
+socket.on('connect', () => {
+    console.log('✅ Conectado ao servidor');
+});
+
+socket.on('connect_error', (error) => {
+    console.error('❌ Erro de conexão:', error);
+    alert('Erro ao conectar ao servidor. Certifique-se que o servidor está rodando.');
+});
+
+socket.on('chat-history', (messages) => {
+    if (isClient) {
+        clientMessages.innerHTML = '';
+        messages.forEach(msg => {
+            const type = msg.sender === 'Cliente' ? 'cliente' : 'funcionario';
+            addMessage(clientMessages, msg.message, msg.sender, type);
+        });
+    }
+});
+
+socket.on('new-message', (data) => {
+    if (isClient && currentClient === data.clientName) {
+        const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
+        addMessage(clientMessages, data.message, data.sender, type);
+    } else if (isEmployee) {
+        if (currentClient === data.clientName) {
+            const type = data.sender === 'Cliente' ? 'cliente' : 'funcionario';
+            addMessage(employeeMessages, data.message, data.sender, type);
+        }
+        updateClientList();
+    }
+});
+
+socket.on('client-join-success', (data) => {
+    console.log('✅ Cliente entrou:', data.clientName);
+    // Mensagens automáticas
+    setTimeout(() => {
+        addMessage(clientMessages, '👋 Bem-vindo à LD Gráfica!', 'Sistema', 'system');
+        addMessage(clientMessages, '📌 Descreva o seu serviço:', 'Sistema', 'system');
+        addMessage(clientMessages, 'Opções: Impressão em Lona, Vinil ou Recorte a Laser', 'Sistema', 'system');
+    }, 500);
+});
+
+socket.on('pedido-confirmado', (data) => {
+    if (isClient && currentClient === data.clientName) {
+        addMessage(clientMessages, '✅ Pedido confirmado!', 'Sistema', 'system');
+        clientStatusBadge.textContent = '📋 Pedido confirmado';
+    }
+});
+
+socket.on('arte-confirmada', (data) => {
+    if (isClient && currentClient === data.clientName) {
+        addMessage(clientMessages, '🎨 Arte pronta!', 'Sistema', 'system');
+        clientStatusBadge.textContent = '🎨 Arte pronta';
+        clientArtePronta.style.display = 'block';
+    }
+});
+
+socket.on('cobranca-enviada', (data) => {
+    if (isClient && currentClient === data.clientName) {
+        clientCobranca.style.display = 'block';
+        clientValorCobranca.textContent = data.valor;
+        clientPagamento.style.display = 'flex';
+        clientArtePronta.style.display = 'none';
+        addMessage(clientMessages, `💰 Valor do serviço: R$ ${data.valor}`, 'Sistema', 'system');
+    }
+});
+
+socket.on('pagamento-confirmado', (data) => {
+    if (isClient && currentClient === data.clientName) {
+        clientPagamento.style.display = 'none';
+        clientCobranca.style.display = 'none';
+        clientProducao.style.display = 'block';
+        clientStatusBadge.textContent = '🟠 EM PRODUÇÃO';
+        clientStatusBadge.className = 'status-badge em-producao';
+        clientTempo.textContent = '⏱️ 45 min';
+        
+        addMessage(clientMessages, '✅ Pagamento confirmado!', 'Sistema', 'system');
+        addMessage(clientMessages, '⏱️ Serviço em produção - 45 minutos', 'Sistema', 'system');
+        
+        iniciarTimer(45);
+    }
+});
+
+socket.on('update-client-list', () => {
+    if (isEmployee) updateClientList();
+});
+
+socket.on('client-online', (data) => {
+    if (isEmployee) {
+        updateClientList();
+        if (currentClient === data.clientName) {
+            employeeClientStatus.textContent = '🟢 online';
+            employeeClientStatus.className = 'status-badge online';
+        }
+    }
+});
+
+socket.on('client-offline', (data) => {
+    if (isEmployee) {
+        updateClientList();
+        if (currentClient === data.clientName) {
+            employeeClientStatus.textContent = '🔴 offline';
+            employeeClientStatus.className = 'status-badge';
+        }
+    }
+});
+
+socket.on('employee-message-sent', (data) => {
+    if (isEmployee && currentClient === data.clientName) {
+        addMessage(employeeMessages, data.message, data.sender, 'funcionario');
+    }
+});
 
 // ===== LOGOUT =====
 btnClientLogout.addEventListener('click', logout);
@@ -559,7 +524,6 @@ function logout() {
     pedidoConfirmado = false;
     arteConfirmada = false;
     pagamentoConfirmado = false;
-    cobrancaEnviada = false;
     
     clientNameInput.disabled = false;
     btnClientLogin.disabled = false;
@@ -596,10 +560,11 @@ function logout() {
     btnPagamentoRealizado.classList.remove('active');
     employeeCobrancaInput.style.display = 'none';
     employeeCobrancaEnviada.style.display = 'none';
-    clientLoginStatus.className = 'status-msg';
-    employeeLoginStatus.className = 'status-msg';
     msgServico.textContent = '📌 Descreva o seu serviço:';
     employeeLoginForm.style.display = 'none';
+    
+    clientLoginStatus.className = 'status-msg';
+    employeeLoginStatus.className = 'status-msg';
     
     switchScreen('login');
     
@@ -607,8 +572,6 @@ function logout() {
     document.querySelector('.tab[data-tab="cliente"]').classList.add('active');
     tabContents.forEach(tc => tc.classList.remove('active'));
     document.getElementById('loginCliente').classList.add('active');
-    
-    console.log('🔓 Logout realizado');
 }
 
 // ===== INICIAR =====
@@ -620,4 +583,3 @@ switchScreen('login');
 console.log('🚀 Sistema LD Gráfica');
 console.log('👤 Funcionário: Dinho | Senha: 123456');
 console.log('📋 Fluxo: Serviço → Dimensões → Análise → Pedido → Arte → Cobrança → Pagamento → Produção');
-console.log('💡 Abra o console do navegador (F12) para ver os logs');
