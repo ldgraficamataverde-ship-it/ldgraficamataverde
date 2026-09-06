@@ -51,6 +51,15 @@ function loadConversation(clientId) {
     return [];
 }
 
+// Função para atualizar lista de clientes
+function updateClientList() {
+    const clientList = Object.values(clients).sort((a, b) => 
+        new Date(b.loginTime) - new Date(a.loginTime)
+    );
+    io.emit('client-list-update', clientList);
+    return clientList;
+}
+
 // Socket.IO
 io.on('connection', (socket) => {
     console.log('Novo cliente conectado:', socket.id);
@@ -58,7 +67,10 @@ io.on('connection', (socket) => {
     // Login do cliente
     socket.on('client-login', (data) => {
         const clientName = data.name.trim();
-        if (!clientName) return;
+        if (!clientName) {
+            socket.emit('login-error', 'Nome inválido');
+            return;
+        }
 
         const clientId = clientName.toLowerCase().replace(/\s/g, '_');
         
@@ -89,6 +101,7 @@ io.on('connection', (socket) => {
             clientStatus[clientId] = 'Aguardando';
         } else {
             clients[clientId].socketId = socket.id;
+            clients[clientId].loginTime = new Date().toISOString();
             if (!clientStatus[clientId]) {
                 clientStatus[clientId] = 'Aguardando';
             }
@@ -100,18 +113,15 @@ io.on('connection', (socket) => {
 
         // Enviar histórico da conversa
         socket.emit('conversation-history', conversations[clientId]);
-
-        // Atualizar lista de clientes para funcionários
-        const clientList = Object.values(clients).sort((a, b) => 
-            new Date(b.loginTime) - new Date(a.loginTime)
-        );
-        io.emit('client-list-update', clientList);
         
         // Enviar status atual
         const currentStatus = clientStatus[clientId] || 'Aguardando';
         socket.emit('status-update', currentStatus);
         
-        console.log(`Cliente logado: ${clientName} (${clientId})`);
+        // Atualizar lista de clientes para todos
+        updateClientList();
+        
+        console.log(`Cliente logado: ${clientName} (${clientId}) - Status: ${currentStatus}`);
     });
 
     // Login do funcionário
@@ -121,7 +131,7 @@ io.on('connection', (socket) => {
             socket.userType = 'employee';
             socket.emit('employee-login-success');
             
-            // Enviar lista de clientes
+            // Enviar lista de clientes atualizada
             const clientList = Object.values(clients).sort((a, b) => 
                 new Date(b.loginTime) - new Date(a.loginTime)
             );
@@ -200,10 +210,7 @@ io.on('connection', (socket) => {
         io.to(clientId).emit('status-update', 'Pedido Confirmado');
         
         // Atualizar lista
-        const clientList = Object.values(clients).sort((a, b) => 
-            new Date(b.loginTime) - new Date(a.loginTime)
-        );
-        io.emit('client-list-update', clientList);
+        updateClientList();
         
         console.log(`Pedido confirmado para ${clientId}`);
     });
@@ -228,10 +235,7 @@ io.on('connection', (socket) => {
         io.to(clientId).emit('status-update', 'Pagamento Confirmado');
         
         // Atualizar lista
-        const clientList = Object.values(clients).sort((a, b) => 
-            new Date(b.loginTime) - new Date(a.loginTime)
-        );
-        io.emit('client-list-update', clientList);
+        updateClientList();
         
         console.log(`Pagamento confirmado para ${clientId}`);
     });
@@ -258,10 +262,7 @@ io.on('connection', (socket) => {
         io.to(clientId).emit('production-timer', minutes);
         
         // Atualizar lista
-        const clientList = Object.values(clients).sort((a, b) => 
-            new Date(b.loginTime) - new Date(a.loginTime)
-        );
-        io.emit('client-list-update', clientList);
+        updateClientList();
         
         console.log(`Produção iniciada para ${clientId}: ${minutes} minutos`);
     });
@@ -287,10 +288,7 @@ io.on('connection', (socket) => {
         io.to(clientId).emit('production-finished');
         
         // Atualizar lista
-        const clientList = Object.values(clients).sort((a, b) => 
-            new Date(b.loginTime) - new Date(a.loginTime)
-        );
-        io.emit('client-list-update', clientList);
+        updateClientList();
         
         console.log(`Produção finalizada para ${clientId}`);
     });
