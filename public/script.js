@@ -43,7 +43,7 @@ const employeeChatMessages = document.getElementById('employee-chat-messages');
 const employeeChatInput = document.getElementById('employee-chat-input');
 const employeeSendBtn = document.getElementById('employee-send-btn');
 const employeeActions = document.getElementById('employee-actions');
-const productionMinutes = document.getElementById('production-minutes');
+const productionDatetime = document.getElementById('production-datetime');
 
 // Event Listeners - Login
 tabs.forEach(tab => {
@@ -158,11 +158,36 @@ document.querySelectorAll('.action-btn').forEach(btn => {
                 }
                 break;
             case 'set-production':
-                const minutes = parseInt(productionMinutes.value) || 45;
-                socket.emit('set-production-time', { 
-                    clientId: selectedClientId, 
-                    minutes: minutes 
-                });
+                const datetime = productionDatetime.value;
+                
+                if (!datetime) {
+                    alert('Por favor, selecione a data e hora de entrega!');
+                    return;
+                }
+                
+                const selectedDate = new Date(datetime);
+                const now = new Date();
+                
+                if (selectedDate <= now) {
+                    alert('Por favor, selecione uma data e hora futura!');
+                    return;
+                }
+                
+                if (confirm(`Iniciar produção com previsão de entrega para:\n${selectedDate.toLocaleDateString('pt-BR', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}`)) {
+                    socket.emit('set-production-time', { 
+                        clientId: selectedClientId, 
+                        datetime: datetime
+                    });
+                    // Limpar o input após enviar
+                    productionDatetime.value = '';
+                }
                 break;
             case 'finish-production':
                 socket.emit('finish-production', selectedClientId);
@@ -208,6 +233,13 @@ socket.on('production-timer', (minutes) => {
     timerSeconds = minutes * 60;
     timerDisplay.style.display = 'block';
     startTimer();
+});
+
+socket.on('production-datetime', (data) => {
+    const timerDate = document.getElementById('timer-date');
+    if (timerDate) {
+        timerDate.textContent = `📅 Previsão: ${data.formatted}`;
+    }
 });
 
 socket.on('production-finished', () => {
@@ -417,40 +449,19 @@ function startTimer() {
         clearInterval(timerInterval);
     }
     
-    updateTimerDate();
-    
     timerInterval = setInterval(() => {
         timerSeconds--;
         if (timerSeconds <= 0) {
             clearInterval(timerInterval);
             timerInterval = null;
             timerCount.textContent = '00:00';
-            updateTimerDate();
             socket.emit('finish-production', selectedClientId || socket.clientId);
         } else {
             const minutes = Math.floor(timerSeconds / 60);
             const seconds = timerSeconds % 60;
             timerCount.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            if (seconds === 0) {
-                updateTimerDate();
-            }
         }
     }, 1000);
-}
-
-function updateTimerDate() {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    if (timerDate) {
-        timerDate.textContent = `📅 ${dateStr}`;
-    }
 }
 
 function showClientScreen() {
@@ -500,6 +511,9 @@ function resetApp() {
     employeePassword.value = '';
     employeeError.textContent = '';
     currentStatus.className = '';
+    if (productionDatetime) {
+        productionDatetime.value = '';
+    }
 }
 
 // Inicializar
