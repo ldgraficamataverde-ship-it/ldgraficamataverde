@@ -1,406 +1,488 @@
-const socket = io();
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const path = require('path');
+const fs = require('fs');
 
-// Estado da aplicação
-let userType = null;
-let clientId = null;
-let selectedClientId = null;
-let timerInterval = null;
-let timerSeconds = 0;
-let isPaymentConfirmed = false;
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server);
 
-// DOM Elements
-const loginScreen = document.getElementById('login-screen');
-const clientScreen = document.getElementById('client-screen');
-const employeeScreen = document.getElementById('employee-screen');
+const PORT = process.env.PORT || 3000;
 
-// Login
-const tabs = document.querySelectorAll('.tab');
-const loginClient = document.getElementById('login-client');
-const loginEmployee = document.getElementById('login-employee');
-const clientNameInput = document.getElementById('client-name');
-const clientLoginBtn = document.getElementById('client-login-btn');
-const employeeUsername = document.getElementById('employee-username');
-const employeePassword = document.getElementById('employee-password');
-const employeeLoginBtn = document.getElementById('employee-login-btn');
-const employeeError = document.getElementById('employee-error');
+// Configurações
+app.use(express.static('public'));
+app.use(express.json());
 
-// Cliente
-const clientLogout = document.getElementById('client-logout');
-const chatMessages = document.getElementById('chat-messages');
-const chatInput = document.getElementById('chat-input');
-const sendBtn = document.getElementById('send-btn');
-const serviceOptions = document.getElementById('service-options');
-const optionsGrid = document.querySelector('.options-grid');
-const currentStatus = document.getElementById('current-status');
-const timerDisplay = document.getElementById('timer-display');
-const timerCount = document.getElementById('timer-count');
-const paymentSection = document.getElementById('payment-section');
-const paymentAmount = document.getElementById('payment-amount');
-const confirmPaymentBtn = document.getElementById('confirm-payment-btn');
-
-// Funcionário
-const employeeLogout = document.getElementById('employee-logout');
-const clientListContainer = document.getElementById('client-list-container');
-const selectedClientName = document.getElementById('selected-client-name');
-const employeeChatMessages = document.getElementById('employee-chat-messages');
-const employeeChatInput = document.getElementById('employee-chat-input');
-const employeeSendBtn = document.getElementById('employee-send-btn');
-const employeeActions = document.getElementById('employee-actions');
-const chargeInput = document.getElementById('charge-input');
-const chargeAmount = document.getElementById('charge-amount');
-const sendChargeBtn = document.getElementById('send-charge-btn');
-
-// Event Listeners - Login
-tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        
-        if (tab.dataset.tab === 'client') {
-            loginClient.classList.add('active');
-            loginEmployee.classList.remove('active');
-        } else {
-            loginClient.classList.remove('active');
-            loginEmployee.classList.add('active');
-        }
-    });
-});
-
-clientLoginBtn.addEventListener('click', () => {
-    const name = clientNameInput.value.trim();
-    if (name) {
-        userType = 'client';
-        socket.emit('client-login', { name });
-    }
-});
-
-employeeLoginBtn.addEventListener('click', () => {
-    const username = employeeUsername.value.trim();
-    const password = employeePassword.value.trim();
-    
-    if (username && password) {
-        socket.emit('employee-login', { username, password });
-    }
-});
-
-// Event Listeners - Cliente
-clientLogout.addEventListener('click', () => {
-    resetApp();
-});
-
-chatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && chatInput.value.trim()) {
-        sendClientMessage();
-    }
-});
-
-sendBtn.addEventListener('click', sendClientMessage);
-
-function sendClientMessage() {
-    const text = chatInput.value.trim();
-    if (text && userType === 'client') {
-        socket.emit('client-message', { text });
-        chatInput.value = '';
-    }
+// Garantir que a pasta de conversas existe
+const conversationsDir = path.join(__dirname, 'conversations');
+if (!fs.existsSync(conversationsDir)) {
+    fs.mkdirSync(conversationsDir);
 }
 
-// Event Listeners - Funcionário
-employeeLogout.addEventListener('click', () => {
-    resetApp();
-});
-
-employeeChatInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && employeeChatInput.value.trim() && selectedClientId) {
-        sendEmployeeMessage();
-    }
-});
-
-employeeSendBtn.addEventListener('click', sendEmployeeMessage);
-
-function sendEmployeeMessage() {
-    const text = employeeChatInput.value.trim();
-    if (text && selectedClientId) {
-        socket.emit('employee-message', { clientId: selectedClientId, text });
-        employeeChatInput.value = '';
-    }
-}
-
-// Socket.IO - Eventos do Cliente
-socket.on('conversation-history', (messages) => {
-    showClientScreen();
-    chatMessages.innerHTML = '';
-    messages.forEach(msg => addMessageToChat(msg));
-    scrollToBottom(chatMessages);
-});
-
-socket.on('conversation-update', (message) => {
-    addMessageToChat(message);
-    scrollToBottom(chatMessages);
-});
-
-socket.on('service-options', (options) => {
-    serviceOptions.style.display = 'block';
-    optionsGrid.innerHTML = '';
-    options.forEach(option => {
-        const btn = document.createElement('button');
-        btn.className = 'service-option';
-        btn.textContent = option;
-        btn.addEventListener('click', () => {
-            socket.emit('select-service', option);
-            serviceOptions.style.display = 'none';
-        });
-        optionsGrid.appendChild(btn);
-    });
-});
-
-socket.on('status-update', (status) => {
-    currentStatus.textContent = status;
-    currentStatus.className = status.toLowerCase().replace(' ', '-');
-});
-
-socket.on('payment-request', (data) => {
-    paymentSection.style.display = 'block';
-    paymentAmount.textContent = `Valor: R$ ${data.amount}`;
-    isPaymentConfirmed = false;
-});
-
-socket.on('production-timer', (minutes) => {
-    timerSeconds = minutes * 60;
-    timerDisplay.style.display = 'block';
-    startTimer();
-});
-
-socket.on('production-finished', () => {
-    timerDisplay.style.display = 'none';
-    if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-    }
-    currentStatus.textContent = 'Pronto para Retirada';
-});
-
-// Socket.IO - Eventos do Funcionário
-socket.on('employee-login-success', () => {
-    showEmployeeScreen();
-    employeeError.textContent = '';
-});
-
-socket.on('employee-login-error', (error) => {
-    employeeError.textContent = error;
-});
-
-socket.on('client-list-update', (clients) => {
-    renderClientList(clients);
-});
-
-socket.on('employee-conversation-update', (data) => {
-    if (selectedClientId === data.clientId) {
-        addMessageToEmployeeChat(data.message);
-        scrollToBottom(employeeChatMessages);
-    }
-});
-
-// Ações do Funcionário
-document.querySelectorAll('.action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const action = btn.dataset.action;
-        if (!selectedClientId) return;
-        
-        switch(action) {
-            case 'confirm-order':
-                socket.emit('confirm-order', selectedClientId);
-                break;
-            case 'confirm-art':
-                socket.emit('confirm-art', selectedClientId);
-                break;
-            case 'charge':
-                chargeInput.style.display = 'flex';
-                break;
-            case 'payment-done':
-                // Simular pagamento realizado pelo funcionário
-                socket.emit('employee-payment-done', selectedClientId);
-                break;
-        }
-    });
-});
-
-sendChargeBtn.addEventListener('click', () => {
-    const amount = chargeAmount.value.trim();
-    if (amount && selectedClientId) {
-        socket.emit('charge-client', { clientId: selectedClientId, amount });
-        chargeInput.style.display = 'none';
-        chargeAmount.value = '';
-    }
-});
-
-// Confirmar pagamento pelo cliente
-confirmPaymentBtn.addEventListener('click', () => {
-    if (!isPaymentConfirmed) {
-        socket.emit('confirm-payment');
-        isPaymentConfirmed = true;
-        paymentSection.style.display = 'none';
-    }
-});
+// Estrutura de dados em memória
+const clients = {};
+const conversations = {};
+const clientStatus = {};
+const clientTimers = {};
+const pendingCharges = {};
 
 // Funções auxiliares
-function addMessageToChat(message) {
-    const div = document.createElement('div');
-    div.className = `message ${message.type}`;
-    
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message.text;
-    div.appendChild(textSpan);
-    
-    if (message.timestamp) {
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'timestamp';
-        timeSpan.textContent = new Date(message.timestamp).toLocaleTimeString();
-        div.appendChild(timeSpan);
-    }
-    
-    chatMessages.appendChild(div);
+function saveConversation(clientId) {
+    if (!conversations[clientId]) return;
+    const filePath = path.join(conversationsDir, `${clientId}.txt`);
+    const content = conversations[clientId].map(msg => 
+        `[${msg.timestamp}] ${msg.type}: ${msg.text}`
+    ).join('\n');
+    fs.writeFileSync(filePath, content);
 }
 
-function addMessageToEmployeeChat(message) {
-    const div = document.createElement('div');
-    div.className = `message ${message.type}`;
-    
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message.text;
-    div.appendChild(textSpan);
-    
-    if (message.timestamp) {
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'timestamp';
-        timeSpan.textContent = new Date(message.timestamp).toLocaleTimeString();
-        div.appendChild(timeSpan);
+function loadConversation(clientId) {
+    const filePath = path.join(conversationsDir, `${clientId}.txt`);
+    if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf8');
+        return content.split('\n').filter(line => line.trim()).map(line => {
+            const [timestamp, type, ...textParts] = line.replace(/[\[\]]/g, '').split(' ');
+            return {
+                timestamp,
+                type,
+                text: textParts.join(' ')
+            };
+        });
     }
-    
-    employeeChatMessages.appendChild(div);
+    return [];
 }
 
-function renderClientList(clients) {
-    clientListContainer.innerHTML = '';
-    clients.forEach(client => {
-        const div = document.createElement('div');
-        div.className = `client-item${selectedClientId === client.id ? ' active' : ''}`;
+// Socket.IO
+io.on('connection', (socket) => {
+    console.log('Novo cliente conectado:', socket.id);
+
+    // Login do cliente
+    socket.on('client-login', (data) => {
+        const clientName = data.name.trim();
+        if (!clientName) return;
+
+        const clientId = clientName.toLowerCase().replace(/\s/g, '_');
         
-        div.innerHTML = `
-            <div class="client-name">${client.name}</div>
-            <div class="client-status">
-                Status: <span class="status-badge ${client.status.toLowerCase().replace(' ', '-')}">${client.status}</span>
-            </div>
-        `;
+        // Carregar conversa existente ou criar nova
+        if (!conversations[clientId]) {
+            conversations[clientId] = loadConversation(clientId);
+            if (conversations[clientId].length === 0) {
+                // Mensagem inicial
+                const welcomeMsg = {
+                    timestamp: new Date().toISOString(),
+                    type: 'system',
+                    text: 'Descreva o seu serviço'
+                };
+                conversations[clientId].push(welcomeMsg);
+                saveConversation(clientId);
+            }
+        }
+
+        // Adicionar cliente à lista
+        if (!clients[clientId]) {
+            clients[clientId] = {
+                id: clientId,
+                name: clientName,
+                socketId: socket.id,
+                loginTime: new Date().toISOString(),
+                status: 'Aguardando'
+            };
+            // Inicializar status como Aguardando
+            clientStatus[clientId] = 'Aguardando';
+        } else {
+            clients[clientId].socketId = socket.id;
+            // Se o status não estiver definido, definir como Aguardando
+            if (!clientStatus[clientId]) {
+                clientStatus[clientId] = 'Aguardando';
+            }
+        }
+
+        socket.join(clientId);
+        socket.clientId = clientId;
+        socket.userType = 'client';
+
+        // Enviar histórico da conversa
+        socket.emit('conversation-history', conversations[clientId]);
+
+        // Atualizar lista de clientes para funcionários
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
         
-        div.addEventListener('click', () => {
-            selectClient(client.id);
+        // Enviar status atual
+        const currentStatus = clientStatus[clientId] || 'Aguardando';
+        socket.emit('status-update', currentStatus);
+
+        // Enviar opções de serviço
+        const serviceOptions = [
+            'Impressão em Lona',
+            'Vinil',
+            'Recorte a Laser'
+        ];
+        socket.emit('service-options', serviceOptions);
+        
+        console.log(`Cliente logado: ${clientName} (${clientId}) - Status: ${currentStatus}`);
+    });
+
+    // Login do funcionário
+    socket.on('employee-login', (data) => {
+        const { username, password } = data;
+        if (username === 'Dinho' && password === '123456') {
+            socket.userType = 'employee';
+            socket.emit('employee-login-success');
+            
+            // Enviar lista de clientes
+            const clientList = Object.values(clients).sort((a, b) => 
+                new Date(b.loginTime) - new Date(a.loginTime)
+            );
+            socket.emit('client-list-update', clientList);
+            
+            console.log('Funcionário logado');
+        } else {
+            socket.emit('employee-login-error', 'Usuário ou senha incorretos');
+        }
+    });
+
+    // Selecionar serviço
+    socket.on('select-service', (service) => {
+        const clientId = socket.clientId;
+        if (!clientId || !conversations[clientId]) return;
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'client',
+            text: `Serviço selecionado: ${service}`
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        socket.emit('conversation-update', message);
+        
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
+        });
+
+        // Mudar status para aguardando dimensões
+        clientStatus[clientId] = 'Aguardando Dimensões';
+        
+        // Atualizar status do cliente
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
+
+        // Perguntar dimensões automaticamente
+        setTimeout(() => {
+            const dimensionMsg = {
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                text: 'Quais as dimensões do seu serviço em cm?'
+            };
+            conversations[clientId].push(dimensionMsg);
+            saveConversation(clientId);
+            socket.emit('conversation-update', dimensionMsg);
+        }, 500);
+    });
+
+    // Mensagem do cliente
+    socket.on('client-message', (data) => {
+        const clientId = socket.clientId;
+        if (!clientId || !conversations[clientId]) return;
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'client',
+            text: data.text
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        // Enviar para o próprio cliente
+        socket.emit('conversation-update', message);
+        
+        // Enviar para funcionários
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
+        });
+
+        // Lógica automática baseada no status atual
+        const currentStatus = clientStatus[clientId] || 'Aguardando';
+        const lastMsg = data.text.toLowerCase();
+        
+        // Verificar se a mensagem contém números (dimensões em cm)
+        const hasDimensions = /\d+/.test(data.text);
+        
+        console.log(`Mensagem de ${clientId}: "${data.text}" - Status: ${currentStatus} - Tem dimensões: ${hasDimensions}`);
+        
+        if (currentStatus === 'Aguardando') {
+            // Se for a primeira mensagem, perguntar dimensões
+            const dimensionMsg = {
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                text: 'Quais as dimensões do seu serviço em cm?'
+            };
+            conversations[clientId].push(dimensionMsg);
+            saveConversation(clientId);
+            socket.emit('conversation-update', dimensionMsg);
+            
+            // Mudar status para aguardando dimensões
+            clientStatus[clientId] = 'Aguardando Dimensões';
+            socket.emit('status-update', 'Aguardando Dimensões');
+            
+            console.log(`Status alterado para: Aguardando Dimensões`);
+            
+        } else if (currentStatus === 'Aguardando Dimensões' && hasDimensions) {
+            // Cliente respondeu com as dimensões
+            clientStatus[clientId] = 'Em Análise';
+            clients[clientId].status = 'Em Análise';
+            
+            const analysisMsg = {
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                text: 'O seu serviço está sendo analisado por um de nossos funcionários. Aguarde...'
+            };
+            conversations[clientId].push(analysisMsg);
+            saveConversation(clientId);
+            socket.emit('conversation-update', analysisMsg);
+            socket.emit('status-update', 'Em Análise');
+            
+            console.log(`Status alterado para: Em Análise`);
+            
+            // Atualizar lista de clientes para funcionários
+            const clientList = Object.values(clients).sort((a, b) => 
+                new Date(b.loginTime) - new Date(a.loginTime)
+            );
+            io.emit('client-list-update', clientList);
+        } else if (currentStatus === 'Aguardando Dimensões' && !hasDimensions) {
+            // Cliente ainda não enviou dimensões válidas
+            const remindMsg = {
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                text: 'Por favor, informe as dimensões do seu serviço em cm (ex: 50x40)'
+            };
+            conversations[clientId].push(remindMsg);
+            saveConversation(clientId);
+            socket.emit('conversation-update', remindMsg);
+            
+            console.log(`Lembrete de dimensões enviado para ${clientId}`);
+        }
+    });
+
+    // Funcionário: enviar mensagem
+    socket.on('employee-message', (data) => {
+        const { clientId, text } = data;
+        if (!conversations[clientId]) return;
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'employee',
+            text: text
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        
+        // Atualizar funcionários
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
+        });
+    });
+
+    // Funcionário: confirmar pedido
+    socket.on('confirm-order', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        clientStatus[clientId] = 'Pedido Confirmado';
+        clients[clientId].status = 'Pedido Confirmado';
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '✅ Pedido confirmado!'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Pedido Confirmado');
+        
+        // Atualizar lista
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
+        
+        console.log(`Pedido confirmado para ${clientId}`);
+    });
+
+    // Funcionário: confirmar arte
+    socket.on('confirm-art', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        clientStatus[clientId] = 'Arte Pronta';
+        clients[clientId].status = 'Arte Pronta';
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '🎨 Arte pronta para impressão!'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Arte Pronta');
+        
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
+        
+        console.log(`Arte confirmada para ${clientId}`);
+    });
+
+    // Funcionário: cobrar
+    socket.on('charge-client', (data) => {
+        const { clientId, amount } = data;
+        if (!clients[clientId]) return;
+        
+        pendingCharges[clientId] = {
+            amount: amount,
+            timestamp: new Date().toISOString()
+        };
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: `💰 Valor do serviço: R$ ${amount}`
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('payment-request', {
+            amount: amount,
+            location: 'Dinho Papelaria - Em frente ao Açaí do Doga'
         });
         
-        clientListContainer.appendChild(div);
+        console.log(`Cobrança enviada para ${clientId}: R$ ${amount}`);
     });
-}
 
-function selectClient(clientId) {
-    selectedClientId = clientId;
-    const client = Object.values(clients).find(c => c.id === clientId);
-    if (client) {
-        selectedClientName.textContent = client.name;
-    }
-    
-    // Atualizar lista
-    const items = clientListContainer.querySelectorAll('.client-item');
-    items.forEach(item => {
-        const name = item.querySelector('.client-name').textContent;
-        if (name === client.name) {
-            item.classList.add('active');
-        } else {
-            item.classList.remove('active');
-        }
+    // Cliente: confirmar pagamento
+    socket.on('confirm-payment', () => {
+        const clientId = socket.clientId;
+        if (!clients[clientId]) return;
+        
+        // Iniciar timer de produção
+        clientStatus[clientId] = 'Em Produção';
+        clients[clientId].status = 'Em Produção';
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '⏱️ Pagamento confirmado! Em produção - 45 minutos'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Em Produção');
+        io.to(clientId).emit('production-timer', 45);
+        
+        // Notificar funcionários
+        const employeeMsg = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: `💰 Pagamento confirmado por ${clients[clientId].name}`
+        };
+        io.emit('employee-conversation-update', {
+            clientId,
+            message: employeeMsg
+        });
+        
+        // Atualizar lista
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
+        
+        console.log(`Pagamento confirmado para ${clientId}`);
     });
-    
-    // Ativar ações
-    employeeActions.style.display = 'flex';
-    employeeChatInput.disabled = false;
-    employeeSendBtn.disabled = false;
-    
-    // Limpar chat
-    employeeChatMessages.innerHTML = '';
-}
 
-function scrollToBottom(element) {
-    element.scrollTop = element.scrollHeight;
-}
+    // Funcionário: finalizar produção
+    socket.on('finish-production', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '✅ Produção finalizada! Pronto para retirada.'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('production-finished');
+        io.to(clientId).emit('status-update', 'Pronto para Retirada');
+        
+        console.log(`Produção finalizada para ${clientId}`);
+    });
 
-function startTimer() {
-    if (timerInterval) {
-        clearInterval(timerInterval);
-    }
-    
-    timerInterval = setInterval(() => {
-        timerSeconds--;
-        if (timerSeconds <= 0) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            timerCount.textContent = '00:00';
-            socket.emit('production-finished');
-        } else {
-            const minutes = Math.floor(timerSeconds / 60);
-            const seconds = timerSeconds % 60;
-            timerCount.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
-    }, 1000);
-}
+    // Funcionário: pagamento realizado
+    socket.on('employee-payment-done', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        // Iniciar timer de produção
+        clientStatus[clientId] = 'Em Produção';
+        clients[clientId].status = 'Em Produção';
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '⏱️ Pagamento realizado! Em produção - 45 minutos'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Em Produção');
+        io.to(clientId).emit('production-timer', 45);
+        
+        // Atualizar lista
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
+        
+        console.log(`Pagamento realizado pelo funcionário para ${clientId}`);
+    });
 
-function showClientScreen() {
-    loginScreen.style.display = 'none';
-    clientScreen.style.display = 'block';
-    employeeScreen.style.display = 'none';
-    chatInput.disabled = false;
-    sendBtn.disabled = false;
-}
+    // Desconectar
+    socket.on('disconnect', () => {
+        console.log('Cliente desconectado:', socket.id);
+        // Remover referências se necessário
+    });
+});
 
-function showEmployeeScreen() {
-    loginScreen.style.display = 'none';
-    clientScreen.style.display = 'none';
-    employeeScreen.style.display = 'block';
-}
+// Rotas
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-function resetApp() {
-    loginScreen.style.display = 'flex';
-    clientScreen.style.display = 'none';
-    employeeScreen.style.display = 'none';
-    userType = null;
-    clientId = null;
-    selectedClientId = null;
-    isPaymentConfirmed = false;
-    
-    if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-    }
-    
-    // Resetar campos
-    chatMessages.innerHTML = '';
-    employeeChatMessages.innerHTML = '';
-    clientListContainer.innerHTML = '';
-    serviceOptions.style.display = 'none';
-    timerDisplay.style.display = 'none';
-    paymentSection.style.display = 'none';
-    employeeActions.style.display = 'none';
-    chargeInput.style.display = 'none';
-    chatInput.disabled = true;
-    sendBtn.disabled = true;
-    employeeChatInput.disabled = true;
-    employeeSendBtn.disabled = true;
-}
-
-// Dados em memória para funcionário
-const clients = {};
-
-// Inicializar
-document.addEventListener('DOMContentLoaded', () => {
-    // Tela de login como padrão
-    loginScreen.style.display = 'flex';
-    clientScreen.style.display = 'none';
-    employeeScreen.style.display = 'none';
+server.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
 });
