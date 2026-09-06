@@ -411,6 +411,7 @@ function resetApp() {
     employeeUsername.value = '';
     employeePassword.value = '';
     employeeError.textContent = '';
+    currentStatus.className = '';
 }
 
 // Inicializar
