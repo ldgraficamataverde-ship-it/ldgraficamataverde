@@ -610,3 +610,45 @@ body {
         font-size: 0.7rem;
     }
 }
+/* Botão Finalizar Atendimento */
+.action-btn.finish-attendance {
+    background: #4a148c;
+    border-color: #7b1fa2;
+    color: #ce93d8;
+}
+
+.action-btn.finish-attendance:hover {
+    background: #6a1b9a;
+    border-color: #ab47bc;
+    color: #ffffff;
+}
+
+/* Mensagem de atendimento finalizado no cliente */
+#attendance-finished-message {
+    text-align: center;
+    padding: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    margin: 10px 0;
+    border: 2px solid #4caf50;
+}
+
+#attendance-finished-message h3 {
+    color: #4caf50;
+    margin-bottom: 10px;
+}
+
+#attendance-finished-message p {
+    color: var(--text-secondary);
+}
+
+/* Cliente finalizado - não pode mais enviar mensagens */
+.chat-input.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.chat-input.disabled input,
+.chat-input.disabled button {
+    cursor: not-allowed;
+}
