@@ -207,6 +207,15 @@ socket.on('client-list-update', (clients) => {
     renderClientList(clients);
 });
 
+// Evento para receber o histórico completo da conversa do cliente selecionado
+socket.on('employee-conversation-history', (data) => {
+    if (selectedClientId === data.clientId) {
+        employeeChatMessages.innerHTML = '';
+        data.messages.forEach(msg => addMessageToEmployeeChat(msg));
+        scrollToBottom(employeeChatMessages);
+    }
+});
+
 socket.on('employee-conversation-update', (data) => {
     if (selectedClientId === data.clientId) {
         addMessageToEmployeeChat(data.message);
@@ -317,6 +326,9 @@ function selectClient(clientId) {
     
     // Limpar chat
     employeeChatMessages.innerHTML = '';
+    
+    // Solicitar histórico completo do cliente
+    socket.emit('employee-select-client', clientId);
 }
 
 function scrollToBottom(element) {
