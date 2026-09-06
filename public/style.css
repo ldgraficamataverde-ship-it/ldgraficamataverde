@@ -14,7 +14,6 @@ body {
     padding: 20px;
 }
 
-/* ===== CONTAINER PRINCIPAL ===== */
 .container {
     width: 100%;
     max-width: 1200px;
@@ -27,7 +26,6 @@ body {
     position: relative;
 }
 
-/* ===== TELAS ===== */
 .screen {
     display: none;
     width: 100%;
@@ -44,7 +42,7 @@ body {
     to { opacity: 1; transform: scale(1); }
 }
 
-/* ===== TELA DE LOGIN ===== */
+/* ===== LOGIN ===== */
 #loginScreen {
     align-items: center;
     justify-content: center;
@@ -200,7 +198,7 @@ body {
     border: 1px solid #ff4444;
 }
 
-/* ===== TELA DO CLIENTE ===== */
+/* ===== CLIENTE ===== */
 #clientScreen {
     flex-direction: column;
     background: #0a0a0a;
@@ -238,8 +236,8 @@ body {
     padding: 20px;
     overflow-y: auto;
     margin-bottom: 15px;
-    min-height: 300px;
-    max-height: 400px;
+    min-height: 200px;
+    max-height: 300px;
     border: 1px solid #2a2a2a;
 }
 
@@ -274,6 +272,10 @@ body {
     padding: 4px 0;
     margin: 4px 0;
     width: 100%;
+}
+
+.msg-system strong {
+    color: #f5c800;
 }
 
 .chat-input {
@@ -337,6 +339,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 10px;
 }
 
 .status-badge {
@@ -367,18 +370,48 @@ body {
     font-size: 1rem;
 }
 
+/* Cliente - Pagamento */
 .pagamento-box {
     margin-top: 12px;
     padding: 15px;
     background: #1a1a1a;
     border-radius: 12px;
     border: 1px solid #f5c800;
-    display: flex;
-    justify-content: center;
+}
+
+.pagamento-info {
+    margin-bottom: 12px;
+}
+
+.pagamento-info p {
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.pagamento-info ul {
+    list-style: none;
+    padding: 0;
+}
+
+.pagamento-info ul li {
+    color: #888;
+    padding: 4px 0;
+    padding-left: 20px;
+    position: relative;
+}
+
+.pagamento-info ul li::before {
+    content: "•";
+    color: #f5c800;
+    position: absolute;
+    left: 0;
+    font-weight: 700;
 }
 
 .pagamento-box button {
-    padding: 12px 40px;
+    width: 100%;
+    padding: 12px;
     border: none;
     border-radius: 12px;
     background: #f5c800;
@@ -389,9 +422,14 @@ body {
     transition: all 0.3s;
 }
 
-.pagamento-box button:hover {
+.pagamento-box button:hover:not(:disabled) {
     background: #ffd733;
     transform: scale(1.02);
+}
+
+.pagamento-box button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .arte-pronta-box {
@@ -405,23 +443,52 @@ body {
     font-weight: 600;
 }
 
-.btn-logout {
-    padding: 8px 20px;
-    border: 1px solid #ff4444;
-    border-radius: 8px;
-    background: transparent;
-    color: #ff4444;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
+.cobranca-box {
+    margin-top: 12px;
+    padding: 15px;
+    background: #1a1a1a;
+    border-radius: 12px;
+    border: 1px solid #f5c800;
+    text-align: center;
 }
 
-.btn-logout:hover {
-    background: #ff4444;
-    color: #0a0a0a;
+.cobranca-box p {
+    color: #fff;
+    margin: 4px 0;
 }
 
-/* ===== TELA DO FUNCIONÁRIO ===== */
+.cobranca-box p strong {
+    color: #f5c800;
+}
+
+.producao-box {
+    margin-top: 12px;
+    padding: 20px;
+    background: #1a1a1a;
+    border-radius: 12px;
+    border: 1px solid #f5c800;
+    text-align: center;
+}
+
+.producao-box p {
+    color: #fff;
+    margin: 4px 0;
+}
+
+.producao-box p strong {
+    color: #f5c800;
+}
+
+.timer-display {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #f5c800;
+    font-family: 'Courier New', monospace;
+    margin: 10px 0;
+    text-shadow: 0 0 30px rgba(245, 200, 0, 0.2);
+}
+
+/* ===== FUNCIONÁRIO ===== */
 #employeeScreen {
     flex-direction: column;
     background: #0a0a0a;
@@ -452,6 +519,22 @@ body {
     margin-right: 12px;
 }
 
+.btn-logout {
+    padding: 8px 20px;
+    border: 1px solid #ff4444;
+    border-radius: 8px;
+    background: transparent;
+    color: #ff4444;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-logout:hover {
+    background: #ff4444;
+    color: #0a0a0a;
+}
+
 .employee-content {
     display: flex;
     gap: 15px;
@@ -459,7 +542,6 @@ body {
     min-height: 0;
 }
 
-/* Lista de Clientes */
 .client-list-panel {
     width: 250px;
     min-width: 200px;
@@ -531,7 +613,6 @@ body {
     font-weight: 700;
 }
 
-/* Chat do Funcionário */
 .employee-chat-panel {
     flex: 1;
     display: flex;
@@ -554,6 +635,83 @@ body {
 .chat-header-mini span:first-child {
     color: #f5c800;
     font-weight: 700;
+}
+
+.employee-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.btn-action {
+    padding: 8px 16px;
+    border: 2px solid #f5c800;
+    border-radius: 8px;
+    background: transparent;
+    color: #f5c800;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    flex: 1;
+    min-width: 100px;
+}
+
+.btn-action:hover:not(:disabled) {
+    background: #f5c800;
+    color: #0a0a0a;
+}
+
+.btn-action:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.btn-action.active {
+    background: #f5c800;
+    color: #0a0a0a;
+}
+
+.cobranca-input {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+}
+
+.cobranca-input input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 2px solid #2a2a2a;
+    border-radius: 8px;
+    background: #111;
+    color: #fff;
+    outline: none;
+}
+
+.cobranca-input input:focus {
+    border-color: #f5c800;
+}
+
+.cobranca-input button {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    background: #f5c800;
+    color: #0a0a0a;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cobranca-enviada {
+    margin-top: 10px;
+    padding: 10px;
+    background: #1a3a1a;
+    border-radius: 8px;
+    border: 1px solid #4caf50;
+    color: #4caf50;
+    text-align: center;
+    font-weight: 600;
 }
 
 /* ===== SCROLLBAR ===== */
@@ -592,8 +750,8 @@ body {
     }
 
     .chat-messages {
-        min-height: 200px;
-        max-height: 250px;
+        min-height: 150px;
+        max-height: 200px;
     }
 
     .container {
@@ -603,6 +761,14 @@ body {
 
     .logo h1 {
         font-size: 2rem;
+    }
+
+    .employee-actions {
+        flex-direction: column;
+    }
+
+    .btn-action {
+        min-width: unset;
     }
 }
 
@@ -638,5 +804,9 @@ body {
     .pedido-status {
         flex-wrap: wrap;
         gap: 8px;
+    }
+
+    .timer-display {
+        font-size: 2rem;
     }
 }

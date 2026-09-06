@@ -55,10 +55,7 @@
 
                 <div class="chat-messages" id="clientMessages">
                     <div class="msg-system">👋 Bem-vindo à LD Gráfica!</div>
-                    <div class="msg-system">📌 Descreva seu serviço:</div>
-                    <div class="msg-system">• Impressão em Lona</div>
-                    <div class="msg-system">• Impressão em Vinil</div>
-                    <div class="msg-system">• Recorte a Laser</div>
+                    <div class="msg-system" id="msgServico">📌 Descreva o seu serviço:</div>
                 </div>
 
                 <div class="chat-input">
@@ -73,10 +70,30 @@
                         <span class="tempo" id="clientTempo">-- min</span>
                     </div>
                     <div id="clientPagamento" style="display:none;" class="pagamento-box">
-                        <button id="btnClientPagar">💳 Confirmar Pagamento</button>
+                        <div class="pagamento-info">
+                            <p>💳 Formas de Pagamento:</p>
+                            <ul>
+                                <li>📱 Pix</li>
+                                <li>💳 Cartão de Crédito/Débito</li>
+                                <li>🏪 Pagar no estabelecimento</li>
+                            </ul>
+                            <p style="font-size:0.8rem;color:#888;margin-top:8px;">
+                                📍 Dinho Papelaria - Em frente ao Açaí do Doga
+                            </p>
+                        </div>
+                        <button id="btnClientPagar">💰 Confirmar Pagamento</button>
                     </div>
                     <div id="clientArtePronta" style="display:none;" class="arte-pronta-box">
                         🎨 Arte pronta! Aguardando pagamento.
+                    </div>
+                    <div id="clientCobranca" style="display:none;" class="cobranca-box">
+                        <p>💰 <strong>Valor do serviço: R$ <span id="clientValorCobranca">0,00</span></strong></p>
+                        <p style="font-size:0.8rem;color:#888;">Aguardando confirmação de pagamento.</p>
+                    </div>
+                    <div id="clientProducao" style="display:none;" class="producao-box">
+                        <p>⏳ <strong>Serviço em produção</strong></p>
+                        <div class="timer-display" id="clientTimerDisplay">45:00</div>
+                        <p style="font-size:0.8rem;color:#888;">Tempo estimado de produção</p>
                     </div>
                 </div>
             </div>
@@ -119,6 +136,19 @@
                             <div class="pedido-status">
                                 <span class="status-badge" id="employeeStatusBadge">⏳ Aguardando</span>
                                 <span class="tempo" id="employeeTempo">-- min</span>
+                            </div>
+                            <div class="employee-actions">
+                                <button id="btnConfirmarPedido" class="btn-action">✅ Confirmar Pedido</button>
+                                <button id="btnConfirmarArte" class="btn-action" disabled>🎨 Confirmar Arte</button>
+                                <button id="btnCobrar" class="btn-action" disabled>💰 Cobrar</button>
+                                <button id="btnPagamentoRealizado" class="btn-action" disabled>✅ Pagamento Realizado</button>
+                            </div>
+                            <div id="employeeCobrancaInput" style="display:none;" class="cobranca-input">
+                                <input type="number" id="employeeValorCobranca" placeholder="Valor do serviço (R$)" step="0.01">
+                                <button id="btnEnviarCobranca">Enviar Cobrança</button>
+                            </div>
+                            <div id="employeeCobrancaEnviada" style="display:none;" class="cobranca-enviada">
+                                💰 Cobrança enviada! Aguardando pagamento.
                             </div>
                         </div>
                     </div>
