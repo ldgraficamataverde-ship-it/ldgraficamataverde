@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LD Gráfica - Sistema de Chat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>LD Gráfica <small>· sistema</small></h1>
+            <div class="header-status" id="headerStatus">⏳ desconectado</div>
+        </div>
+
+        <!-- Login do Cliente -->
+        <div class="login-area" id="clientLogin">
+            <label>👤 Seu nome completo</label>
+            <div class="login-row">
+                <input type="text" id="clientNameInput" placeholder="Ex: João da Silva">
+                <button id="btnClientEnter">Entrar no chat</button>
+            </div>
+            <div id="clientStatus" class="status-text">Aguardando identificação</div>
+        </div>
+
+        <!-- Login do Funcionário -->
+        <div class="employee-login-area" id="employeeLogin">
+            <div class="employee-toggle">
+                <button id="btnToggleEmployeeLogin">👨‍💼 Funcionário</button>
+            </div>
+            <div id="employeeLoginForm" style="display: none;">
+                <label>👨‍💼 Login do Funcionário</label>
+                <div class="login-row">
+                    <input type="text" id="employeeUsername" placeholder="Usuário">
+                    <input type="password" id="employeePassword" placeholder="Senha">
+                    <button id="btnEmployeeLogin">Entrar</button>
+                </div>
+                <div id="employeeStatus" class="status-text"></div>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="chat-header">
+                <span id="chatClientName">Cliente</span>
+                <span id="chatStatus" class="status-badge">offline</span>
+            </div>
+            <div class="chat-messages" id="chatMessages"></div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Digite sua mensagem..." disabled>
+                <button id="btnSendChat" disabled>Enviar</button>
+            </div>
+        </div>
+
+        <!-- Painel do Pedido (Client-side) -->
+        <div class="pedido-painel" id="pedidoPainel">
+            <div class="pedido-status-area">
+                <div class="status-box">
+                    <span class="status-badge" id="statusBadge">⏳ aguardando</span>
+                    <span id="clientePedido">Cliente</span>
+                </div>
+                <div class="tempo-restante" id="tempoRestante">⏱️ -- min</div>
+            </div>
+            <div id="pagamentoArea" class="pagamento-area" style="display: none;">
+                <span>💳 Pagamento</span>
+                <button class="btn-pagar" id="btnPagar">✓ Confirmar pagamento</button>
+            </div>
+            <div id="avisoArtePronta" class="aviso-arte" style="display: none;">
+                🎨 Arte pronta! Aguardando pagamento.
+            </div>
+        </div>
+
+        <!-- Lista de Clientes (Employee-side) -->
+        <div class="client-list" id="clientList" style="display: none;">
+            <h3>📋 Clientes Ativos</h3>
+            <div id="clientsContainer"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
