@@ -34,6 +34,7 @@ const currentStatus = document.getElementById('current-status');
 const timerDisplay = document.getElementById('timer-display');
 const timerCount = document.getElementById('timer-count');
 const timerDate = document.getElementById('timer-date');
+const imageUpload = document.getElementById('image-upload');
 
 // Funcionário
 const employeeLogout = document.getElementById('employee-logout');
@@ -44,6 +45,7 @@ const employeeChatInput = document.getElementById('employee-chat-input');
 const employeeSendBtn = document.getElementById('employee-send-btn');
 const employeeActions = document.getElementById('employee-actions');
 const productionDatetime = document.getElementById('production-datetime');
+const employeeImageUpload = document.getElementById('employee-image-upload');
 
 // Event Listeners - Login
 tabs.forEach(tab => {
@@ -120,6 +122,84 @@ function sendClientMessage() {
     }
 }
 
+// Upload de imagem do cliente
+imageUpload.addEventListener('change', function(e) {
+    if (this.files && this.files[0]) {
+        const file = this.files[0];
+        
+        // Verificar tamanho (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('A imagem deve ter no máximo 5MB');
+            this.value = '';
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        fetch('/upload-image', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                socket.emit('client-image', { imageUrl: data.imageUrl });
+                this.value = '';
+            } else {
+                alert('Erro ao enviar imagem: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao enviar imagem');
+        });
+    }
+});
+
+// Upload de imagem do funcionário
+employeeImageUpload.addEventListener('change', function(e) {
+    if (this.files && this.files[0]) {
+        const file = this.files[0];
+        
+        if (file.size > 5 * 1024 * 1024) {
+            alert('A imagem deve ter no máximo 5MB');
+            this.value = '';
+            return;
+        }
+        
+        if (!selectedClientId) {
+            alert('Selecione um cliente primeiro!');
+            this.value = '';
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        fetch('/upload-employee-image', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                socket.emit('employee-image', { 
+                    clientId: selectedClientId, 
+                    imageUrl: data.imageUrl 
+                });
+                this.value = '';
+            } else {
+                alert('Erro ao enviar imagem: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao enviar imagem');
+        });
+    }
+});
+
 // Event Listeners - Funcionário
 employeeLogout.addEventListener('click', resetApp);
 
@@ -185,7 +265,6 @@ document.querySelectorAll('.action-btn').forEach(btn => {
                         clientId: selectedClientId, 
                         datetime: datetime
                     });
-                    // Limpar o input após enviar
                     productionDatetime.value = '';
                 }
                 break;
@@ -313,35 +392,47 @@ socket.on('attendance-finished-confirm', (data) => {
 // Funções auxiliares
 function addMessageToChat(message) {
     const div = document.createElement('div');
-    div.className = `message ${message.type}`;
     
-    // Verificar se é mensagem de Pix
-    if (message.type === 'employee' && message.text.includes('PIX')) {
-        const lines = message.text.split('\n');
-        const textSpan = document.createElement('span');
-        textSpan.innerHTML = lines.map(line => {
-            if (line.includes('💳')) return `<strong>${line}</strong>`;
-            if (line.includes('CPF')) return `<span class="pix-info">${line}</span>`;
-            if (line.includes('Favorecido')) return `<span class="pix-info">${line}</span>`;
-            if (line.includes('Banco')) return `<span class="pix-info">${line}</span>`;
-            return line;
-        }).join('<br>');
-        div.appendChild(textSpan);
+    // Verificar se é imagem
+    if (message.type === 'image') {
+        div.className = `message ${message.sender === 'client' ? 'client' : 'employee'}`;
+        div.innerHTML = `
+            <div class="image-message">
+                <img src="${message.imageUrl}" alt="Imagem enviada" class="chat-image" onclick="openImage('${message.imageUrl}')">
+                <div class="image-label">📷 Imagem enviada</div>
+            </div>
+            ${message.timestamp ? `<span class="timestamp">${new Date(message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
+        `;
     } else {
+        div.className = `message ${message.type}`;
         const textSpan = document.createElement('span');
-        textSpan.textContent = message.text;
+        
+        // Verificar se é mensagem de Pix
+        if (message.type === 'employee' && message.text.includes('PIX')) {
+            const lines = message.text.split('\n');
+            textSpan.innerHTML = lines.map(line => {
+                if (line.includes('💳')) return `<strong>${line}</strong>`;
+                if (line.includes('CPF')) return `<span class="pix-info">${line}</span>`;
+                if (line.includes('Favorecido')) return `<span class="pix-info">${line}</span>`;
+                if (line.includes('Banco')) return `<span class="pix-info">${line}</span>`;
+                return line;
+            }).join('<br>');
+        } else {
+            textSpan.textContent = message.text;
+        }
+        
         div.appendChild(textSpan);
-    }
-    
-    if (message.timestamp) {
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'timestamp';
-        const date = new Date(message.timestamp);
-        timeSpan.textContent = date.toLocaleTimeString('pt-BR', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-        div.appendChild(timeSpan);
+        
+        if (message.timestamp) {
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            const date = new Date(message.timestamp);
+            timeSpan.textContent = date.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            div.appendChild(timeSpan);
+        }
     }
     
     chatMessages.appendChild(div);
@@ -349,39 +440,64 @@ function addMessageToChat(message) {
 
 function addMessageToEmployeeChat(message) {
     const div = document.createElement('div');
-    div.className = `message ${message.type}`;
     
-    // Verificar se é mensagem de Pix
-    if (message.type === 'employee' && message.text.includes('PIX')) {
-        const lines = message.text.split('\n');
-        const textSpan = document.createElement('span');
-        textSpan.innerHTML = lines.map(line => {
-            if (line.includes('💳')) return `<strong>${line}</strong>`;
-            if (line.includes('CPF')) return `<span class="pix-info">${line}</span>`;
-            if (line.includes('Favorecido')) return `<span class="pix-info">${line}</span>`;
-            if (line.includes('Banco')) return `<span class="pix-info">${line}</span>`;
-            return line;
-        }).join('<br>');
-        div.appendChild(textSpan);
+    // Verificar se é imagem
+    if (message.type === 'image') {
+        div.className = `message ${message.sender === 'client' ? 'client' : 'employee'}`;
+        div.innerHTML = `
+            <div class="image-message">
+                <img src="${message.imageUrl}" alt="Imagem enviada" class="chat-image" onclick="openImage('${message.imageUrl}')">
+                <div class="image-label">📷 Imagem enviada</div>
+            </div>
+            ${message.timestamp ? `<span class="timestamp">${new Date(message.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
+        `;
     } else {
+        div.className = `message ${message.type}`;
         const textSpan = document.createElement('span');
-        textSpan.textContent = message.text;
+        
+        if (message.type === 'employee' && message.text.includes('PIX')) {
+            const lines = message.text.split('\n');
+            textSpan.innerHTML = lines.map(line => {
+                if (line.includes('💳')) return `<strong>${line}</strong>`;
+                if (line.includes('CPF')) return `<span class="pix-info">${line}</span>`;
+                if (line.includes('Favorecido')) return `<span class="pix-info">${line}</span>`;
+                if (line.includes('Banco')) return `<span class="pix-info">${line}</span>`;
+                return line;
+            }).join('<br>');
+        } else {
+            textSpan.textContent = message.text;
+        }
+        
         div.appendChild(textSpan);
-    }
-    
-    if (message.timestamp) {
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'timestamp';
-        const date = new Date(message.timestamp);
-        timeSpan.textContent = date.toLocaleTimeString('pt-BR', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-        div.appendChild(timeSpan);
+        
+        if (message.timestamp) {
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            const date = new Date(message.timestamp);
+            timeSpan.textContent = date.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            div.appendChild(timeSpan);
+        }
     }
     
     employeeChatMessages.appendChild(div);
 }
+
+// Função para abrir imagem em tamanho grande
+window.openImage = function(url) {
+    const modal = document.createElement('div');
+    modal.className = 'image-modal';
+    modal.innerHTML = `
+        <div class="image-modal-content" onclick="event.stopPropagation()">
+            <span class="image-modal-close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+            <img src="${url}" alt="Imagem ampliada">
+        </div>
+    `;
+    modal.onclick = function() { this.remove(); };
+    document.body.appendChild(modal);
+};
 
 function renderClientList(clients) {
     clientListContainer.innerHTML = '';
@@ -434,6 +550,7 @@ function selectClient(clientId) {
     employeeActions.style.display = 'flex';
     employeeChatInput.disabled = false;
     employeeSendBtn.disabled = false;
+    employeeImageUpload.disabled = false;
     
     employeeChatMessages.innerHTML = '';
     
@@ -470,6 +587,7 @@ function showClientScreen() {
     employeeScreen.style.display = 'none';
     chatInput.disabled = false;
     sendBtn.disabled = false;
+    imageUpload.disabled = false;
     attendanceFinished = false;
 }
 
@@ -501,8 +619,10 @@ function resetApp() {
     employeeActions.style.display = 'none';
     chatInput.disabled = true;
     sendBtn.disabled = true;
+    imageUpload.disabled = true;
     employeeChatInput.disabled = true;
     employeeSendBtn.disabled = true;
+    employeeImageUpload.disabled = true;
     employeeChatInput.value = '';
     chatInput.value = '';
     chatInput.placeholder = 'Digite sua mensagem...';
