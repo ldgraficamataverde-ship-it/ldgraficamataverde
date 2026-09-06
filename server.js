@@ -24,8 +24,6 @@ if (!fs.existsSync(conversationsDir)) {
 const clients = {};
 const conversations = {};
 const clientStatus = {};
-const clientTimers = {};
-const pendingCharges = {};
 
 // Funções auxiliares
 function saveConversation(clientId) {
@@ -72,7 +70,7 @@ io.on('connection', (socket) => {
                 const welcomeMsg = {
                     timestamp: new Date().toISOString(),
                     type: 'system',
-                    text: 'Descreva o seu serviço'
+                    text: `Olá ${clientName}! Como posso ajudá-lo hoje?`
                 };
                 conversations[clientId].push(welcomeMsg);
                 saveConversation(clientId);
@@ -91,6 +89,9 @@ io.on('connection', (socket) => {
             clientStatus[clientId] = 'Aguardando';
         } else {
             clients[clientId].socketId = socket.id;
+            if (!clientStatus[clientId]) {
+                clientStatus[clientId] = 'Aguardando';
+            }
         }
 
         socket.join(clientId);
@@ -107,15 +108,10 @@ io.on('connection', (socket) => {
         io.emit('client-list-update', clientList);
         
         // Enviar status atual
-        socket.emit('status-update', clientStatus[clientId]);
-
-        // Enviar opções de serviço
-        const serviceOptions = [
-            'Impressão em Lona',
-            'Vinil',
-            'Recorte a Laser'
-        ];
-        socket.emit('service-options', serviceOptions);
+        const currentStatus = clientStatus[clientId] || 'Aguardando';
+        socket.emit('status-update', currentStatus);
+        
+        console.log(`Cliente logado: ${clientName} (${clientId})`);
     });
 
     // Login do funcionário
@@ -130,6 +126,8 @@ io.on('connection', (socket) => {
                 new Date(b.loginTime) - new Date(a.loginTime)
             );
             socket.emit('client-list-update', clientList);
+            
+            console.log('Funcionário logado');
         } else {
             socket.emit('employee-login-error', 'Usuário ou senha incorretos');
         }
@@ -157,72 +155,6 @@ io.on('connection', (socket) => {
             clientId,
             message
         });
-
-        // Lógica automática baseada na mensagem
-        const lastMsg = data.text.toLowerCase();
-        
-        if (clientStatus[clientId] === 'Aguardando') {
-            // Perguntar dimensões
-            const dimensionMsg = {
-                timestamp: new Date().toISOString(),
-                type: 'system',
-                text: 'Quais as dimensões do seu serviço em cm?'
-            };
-            conversations[clientId].push(dimensionMsg);
-            saveConversation(clientId);
-            socket.emit('conversation-update', dimensionMsg);
-        } else if (clientStatus[clientId] === 'Aguardando' && lastMsg.includes('cm')) {
-            // Iniciar análise
-            clientStatus[clientId] = 'Em Análise';
-            const analysisMsg = {
-                timestamp: new Date().toISOString(),
-                type: 'system',
-                text: 'O seu serviço está sendo analisado por um de nossos funcionários. Aguarde...'
-            };
-            conversations[clientId].push(analysisMsg);
-            saveConversation(clientId);
-            socket.emit('conversation-update', analysisMsg);
-            socket.emit('status-update', 'Em Análise');
-            
-            // Atualizar status para funcionários
-            const clientList = Object.values(clients).sort((a, b) => 
-                new Date(b.loginTime) - new Date(a.loginTime)
-            );
-            io.emit('client-list-update', clientList);
-        }
-    });
-
-    // Selecionar serviço
-    socket.on('select-service', (service) => {
-        const clientId = socket.clientId;
-        if (!clientId || !conversations[clientId]) return;
-
-        const message = {
-            timestamp: new Date().toISOString(),
-            type: 'client',
-            text: `Serviço selecionado: ${service}`
-        };
-        
-        conversations[clientId].push(message);
-        saveConversation(clientId);
-        socket.emit('conversation-update', message);
-        
-        io.emit('employee-conversation-update', {
-            clientId,
-            message
-        });
-
-        // Perguntar dimensões automaticamente
-        setTimeout(() => {
-            const dimensionMsg = {
-                timestamp: new Date().toISOString(),
-                type: 'system',
-                text: 'Quais as dimensões do seu serviço em cm?'
-            };
-            conversations[clientId].push(dimensionMsg);
-            saveConversation(clientId);
-            socket.emit('conversation-update', dimensionMsg);
-        }, 500);
     });
 
     // Funcionário: enviar mensagem
@@ -272,72 +204,50 @@ io.on('connection', (socket) => {
             new Date(b.loginTime) - new Date(a.loginTime)
         );
         io.emit('client-list-update', clientList);
+        
+        console.log(`Pedido confirmado para ${clientId}`);
     });
 
-    // Funcionário: confirmar arte
-    socket.on('confirm-art', (clientId) => {
+    // Funcionário: confirmar pagamento
+    socket.on('confirm-payment', (clientId) => {
         if (!clients[clientId]) return;
         
-        clientStatus[clientId] = 'Arte Pronta';
-        clients[clientId].status = 'Arte Pronta';
+        clientStatus[clientId] = 'Pagamento Confirmado';
+        clients[clientId].status = 'Pagamento Confirmado';
         
         const message = {
             timestamp: new Date().toISOString(),
             type: 'system',
-            text: '🎨 Arte pronta para impressão!'
+            text: '💰 Pagamento confirmado!'
         };
         
         conversations[clientId].push(message);
         saveConversation(clientId);
         
         io.to(clientId).emit('conversation-update', message);
-        io.to(clientId).emit('status-update', 'Arte Pronta');
+        io.to(clientId).emit('status-update', 'Pagamento Confirmado');
         
+        // Atualizar lista
         const clientList = Object.values(clients).sort((a, b) => 
             new Date(b.loginTime) - new Date(a.loginTime)
         );
         io.emit('client-list-update', clientList);
+        
+        console.log(`Pagamento confirmado para ${clientId}`);
     });
 
-    // Funcionário: cobrar
-    socket.on('charge-client', (data) => {
-        const { clientId, amount } = data;
+    // Funcionário: definir tempo de produção
+    socket.on('set-production-time', (data) => {
+        const { clientId, minutes } = data;
         if (!clients[clientId]) return;
         
-        pendingCharges[clientId] = {
-            amount: amount,
-            timestamp: new Date().toISOString()
-        };
-        
-        const message = {
-            timestamp: new Date().toISOString(),
-            type: 'system',
-            text: `💰 Valor do serviço: R$ ${amount}`
-        };
-        
-        conversations[clientId].push(message);
-        saveConversation(clientId);
-        
-        io.to(clientId).emit('conversation-update', message);
-        io.to(clientId).emit('payment-request', {
-            amount: amount,
-            location: 'Dinho Papelaria - Em frente ao Açaí do Doga'
-        });
-    });
-
-    // Cliente: confirmar pagamento
-    socket.on('confirm-payment', () => {
-        const clientId = socket.clientId;
-        if (!clients[clientId]) return;
-        
-        // Iniciar timer de produção
         clientStatus[clientId] = 'Em Produção';
         clients[clientId].status = 'Em Produção';
         
         const message = {
             timestamp: new Date().toISOString(),
             type: 'system',
-            text: '⏱️ Pagamento confirmado! Em produção - 45 minutos'
+            text: `⏱️ Em produção - ${minutes} minutos`
         };
         
         conversations[clientId].push(message);
@@ -345,29 +255,23 @@ io.on('connection', (socket) => {
         
         io.to(clientId).emit('conversation-update', message);
         io.to(clientId).emit('status-update', 'Em Produção');
-        io.to(clientId).emit('production-timer', 45);
-        
-        // Notificar funcionários
-        const employeeMsg = {
-            timestamp: new Date().toISOString(),
-            type: 'system',
-            text: `💰 Pagamento confirmado por ${clients[clientId].name}`
-        };
-        io.emit('employee-conversation-update', {
-            clientId,
-            message: employeeMsg
-        });
+        io.to(clientId).emit('production-timer', minutes);
         
         // Atualizar lista
         const clientList = Object.values(clients).sort((a, b) => 
             new Date(b.loginTime) - new Date(a.loginTime)
         );
         io.emit('client-list-update', clientList);
+        
+        console.log(`Produção iniciada para ${clientId}: ${minutes} minutos`);
     });
 
     // Funcionário: finalizar produção
     socket.on('finish-production', (clientId) => {
         if (!clients[clientId]) return;
+        
+        clientStatus[clientId] = 'Pronto para Retirada';
+        clients[clientId].status = 'Pronto para Retirada';
         
         const message = {
             timestamp: new Date().toISOString(),
@@ -379,13 +283,21 @@ io.on('connection', (socket) => {
         saveConversation(clientId);
         
         io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Pronto para Retirada');
         io.to(clientId).emit('production-finished');
+        
+        // Atualizar lista
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
+        
+        console.log(`Produção finalizada para ${clientId}`);
     });
 
     // Desconectar
     socket.on('disconnect', () => {
         console.log('Cliente desconectado:', socket.id);
-        // Remover referências se necessário
     });
 });
 
