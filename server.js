@@ -1,252 +1,399 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
+const io = socketIo(server);
 
-// Configuração do Socket.IO para produção
-const io = socketIo(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    },
-    transports: ['polling', 'websocket'],
-    allowEIO3: true
-});
+const PORT = process.env.PORT || 3000;
 
-const PORT = process.env.PORT || 8080;
-
-// Pastas e arquivos
-const CONVERSATIONS_DIR = path.join(__dirname, 'conversations');
-const USERS_FILE = path.join(__dirname, 'users.json');
-
-if (!fs.existsSync(CONVERSATIONS_DIR)) {
-    fs.mkdirSync(CONVERSATIONS_DIR);
-    console.log('📁 Pasta conversations criada');
-}
-
-if (!fs.existsSync(USERS_FILE)) {
-    const defaultUsers = {
-        "Dinho": {
-            password: "123456",
-            name: "Dinho",
-            role: "funcionario"
-        }
-    };
-    fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
-    console.log('📄 users.json criado');
-}
-
-// Servir arquivos estáticos
+// Configurações
 app.use(express.static('public'));
 app.use(express.json());
 
-// Rotas da API
-app.get('/api/clients', (req, res) => {
-    try {
-        const files = fs.readdirSync(CONVERSATIONS_DIR);
-        const clients = files
-            .filter(file => file.endsWith('.txt'))
-            .map(file => file.replace('.txt', ''))
-            .sort();
-        res.json(clients);
-    } catch (error) {
-        res.json([]);
-    }
-});
+// Garantir que a pasta de conversas existe
+const conversationsDir = path.join(__dirname, 'conversations');
+if (!fs.existsSync(conversationsDir)) {
+    fs.mkdirSync(conversationsDir);
+}
 
-app.get('/api/conversations/:clientName', (req, res) => {
-    try {
-        const clientName = req.params.clientName;
-        const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
-        
-        if (fs.existsSync(filePath)) {
-            const content = fs.readFileSync(filePath, 'utf8');
-            const messages = content.split('\n')
-                .filter(line => line.trim())
-                .map(line => {
-                    const parts = line.split('|');
-                    return {
-                        timestamp: parts[0] || '',
-                        sender: parts[1] || '',
-                        message: parts.slice(2).join('|') || ''
-                    };
-                });
-            res.json(messages);
-        } else {
-            res.json([]);
-        }
-    } catch (error) {
-        res.json([]);
-    }
-});
+// Estrutura de dados em memória
+const clients = {};
+const conversations = {};
+const clientStatus = {};
+const clientTimers = {};
+const pendingCharges = {};
 
-app.post('/api/login', (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-        
-        if (users[username] && users[username].password === password) {
-            res.json({ 
-                success: true, 
-                user: { 
-                    username, 
-                    name: users[username].name,
-                    role: users[username].role
-                } 
-            });
-        } else {
-            res.status(401).json({ success: false, message: 'Credenciais inválidas' });
-        }
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Erro interno' });
-    }
-});
+// Funções auxiliares
+function saveConversation(clientId) {
+    if (!conversations[clientId]) return;
+    const filePath = path.join(conversationsDir, `${clientId}.txt`);
+    const content = conversations[clientId].map(msg => 
+        `[${msg.timestamp}] ${msg.type}: ${msg.text}`
+    ).join('\n');
+    fs.writeFileSync(filePath, content);
+}
 
-// Rota de teste
-app.get('/api/test', (req, res) => {
-    res.json({ message: 'API funcionando!' });
-});
+function loadConversation(clientId) {
+    const filePath = path.join(conversationsDir, `${clientId}.txt`);
+    if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf8');
+        return content.split('\n').filter(line => line.trim()).map(line => {
+            const [timestamp, type, ...textParts] = line.replace(/[\[\]]/g, '').split(' ');
+            return {
+                timestamp,
+                type,
+                text: textParts.join(' ')
+            };
+        });
+    }
+    return [];
+}
 
 // Socket.IO
 io.on('connection', (socket) => {
-    console.log('✅ Cliente conectado:', socket.id);
+    console.log('Novo cliente conectado:', socket.id);
 
-    // Cliente entrou
-    socket.on('client-join', (data) => {
-        const { clientName } = data;
-        socket.clientName = clientName;
-        socket.isClient = true;
-        console.log('👤 Cliente entrou:', clientName);
+    // Login do cliente
+    socket.on('client-login', (data) => {
+        const clientName = data.name.trim();
+        if (!clientName) return;
+
+        const clientId = clientName.toLowerCase().replace(/\s/g, '_');
         
-        // Carregar histórico
-        const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
-        if (fs.existsSync(filePath)) {
-            const content = fs.readFileSync(filePath, 'utf8');
-            const messages = content.split('\n')
-                .filter(line => line.trim())
-                .map(line => {
-                    const parts = line.split('|');
-                    return {
-                        timestamp: parts[0] || '',
-                        sender: parts[1] || '',
-                        message: parts.slice(2).join('|') || ''
-                    };
-                });
-            socket.emit('chat-history', messages);
+        // Carregar conversa existente ou criar nova
+        if (!conversations[clientId]) {
+            conversations[clientId] = loadConversation(clientId);
+            if (conversations[clientId].length === 0) {
+                // Mensagem inicial
+                const welcomeMsg = {
+                    timestamp: new Date().toISOString(),
+                    type: 'system',
+                    text: 'Descreva o seu serviço'
+                };
+                conversations[clientId].push(welcomeMsg);
+                saveConversation(clientId);
+            }
         }
+
+        // Adicionar cliente à lista
+        if (!clients[clientId]) {
+            clients[clientId] = {
+                id: clientId,
+                name: clientName,
+                socketId: socket.id,
+                loginTime: new Date().toISOString(),
+                status: 'Aguardando'
+            };
+            clientStatus[clientId] = 'Aguardando';
+        } else {
+            clients[clientId].socketId = socket.id;
+        }
+
+        socket.join(clientId);
+        socket.clientId = clientId;
+        socket.userType = 'client';
+
+        // Enviar histórico da conversa
+        socket.emit('conversation-history', conversations[clientId]);
+
+        // Atualizar lista de clientes para funcionários
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
         
-        // Notificar todos
-        io.emit('client-online', { clientName });
-        io.emit('update-client-list');
-        socket.emit('client-join-success', { clientName });
+        // Enviar status atual
+        socket.emit('status-update', clientStatus[clientId]);
+
+        // Enviar opções de serviço
+        const serviceOptions = [
+            'Impressão em Lona',
+            'Vinil',
+            'Recorte a Laser'
+        ];
+        socket.emit('service-options', serviceOptions);
     });
 
-    // Funcionário entrou
-    socket.on('employee-join', (data) => {
-        const { username, name } = data;
-        socket.username = username;
-        socket.userName = name;
-        socket.isClient = false;
-        console.log('👨‍💼 Funcionário entrou:', username);
-        socket.emit('update-client-list');
+    // Login do funcionário
+    socket.on('employee-login', (data) => {
+        const { username, password } = data;
+        if (username === 'Dinho' && password === '123456') {
+            socket.userType = 'employee';
+            socket.emit('employee-login-success');
+            
+            // Enviar lista de clientes
+            const clientList = Object.values(clients).sort((a, b) => 
+                new Date(b.loginTime) - new Date(a.loginTime)
+            );
+            socket.emit('client-list-update', clientList);
+        } else {
+            socket.emit('employee-login-error', 'Usuário ou senha incorretos');
+        }
     });
 
     // Mensagem do cliente
     socket.on('client-message', (data) => {
-        const { clientName, message } = data;
-        const timestamp = new Date().toLocaleString('pt-BR');
-        const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
+        const clientId = socket.clientId;
+        if (!clientId || !conversations[clientId]) return;
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'client',
+            text: data.text
+        };
         
-        // Salvar
-        const logLine = `${timestamp}|Cliente|${message}\n`;
-        fs.appendFileSync(filePath, logLine);
+        conversations[clientId].push(message);
+        saveConversation(clientId);
         
-        // Enviar para todos
-        io.emit('new-message', {
-            clientName,
-            message,
-            sender: 'Cliente',
-            timestamp
+        // Enviar para o próprio cliente
+        socket.emit('conversation-update', message);
+        
+        // Enviar para funcionários
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
         });
-        io.emit('update-client-list');
+
+        // Lógica automática baseada na mensagem
+        const lastMsg = data.text.toLowerCase();
+        
+        if (clientStatus[clientId] === 'Aguardando') {
+            // Perguntar dimensões
+            const dimensionMsg = {
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                text: 'Quais as dimensões do seu serviço em cm?'
+            };
+            conversations[clientId].push(dimensionMsg);
+            saveConversation(clientId);
+            socket.emit('conversation-update', dimensionMsg);
+        } else if (clientStatus[clientId] === 'Aguardando' && lastMsg.includes('cm')) {
+            // Iniciar análise
+            clientStatus[clientId] = 'Em Análise';
+            const analysisMsg = {
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                text: 'O seu serviço está sendo analisado por um de nossos funcionários. Aguarde...'
+            };
+            conversations[clientId].push(analysisMsg);
+            saveConversation(clientId);
+            socket.emit('conversation-update', analysisMsg);
+            socket.emit('status-update', 'Em Análise');
+            
+            // Atualizar status para funcionários
+            const clientList = Object.values(clients).sort((a, b) => 
+                new Date(b.loginTime) - new Date(a.loginTime)
+            );
+            io.emit('client-list-update', clientList);
+        }
     });
 
-    // Mensagem do funcionário
+    // Selecionar serviço
+    socket.on('select-service', (service) => {
+        const clientId = socket.clientId;
+        if (!clientId || !conversations[clientId]) return;
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'client',
+            text: `Serviço selecionado: ${service}`
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        socket.emit('conversation-update', message);
+        
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
+        });
+
+        // Perguntar dimensões automaticamente
+        setTimeout(() => {
+            const dimensionMsg = {
+                timestamp: new Date().toISOString(),
+                type: 'system',
+                text: 'Quais as dimensões do seu serviço em cm?'
+            };
+            conversations[clientId].push(dimensionMsg);
+            saveConversation(clientId);
+            socket.emit('conversation-update', dimensionMsg);
+        }, 500);
+    });
+
+    // Funcionário: enviar mensagem
     socket.on('employee-message', (data) => {
-        const { clientName, message, employeeName } = data;
-        const timestamp = new Date().toLocaleString('pt-BR');
-        const filePath = path.join(CONVERSATIONS_DIR, `${clientName}.txt`);
+        const { clientId, text } = data;
+        if (!conversations[clientId]) return;
+
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'employee',
+            text: text
+        };
         
-        // Salvar
-        const logLine = `${timestamp}|${employeeName}|${message}\n`;
-        fs.appendFileSync(filePath, logLine);
+        conversations[clientId].push(message);
+        saveConversation(clientId);
         
-        // Enviar para o cliente específico
-        const clients = io.sockets.sockets;
-        for (let [id, client] of clients) {
-            if (client.isClient && client.clientName === clientName) {
-                client.emit('new-message', {
-                    message,
-                    sender: employeeName,
-                    timestamp
-                });
-            }
-        }
+        io.to(clientId).emit('conversation-update', message);
         
-        // Enviar para todos os funcionários
-        socket.broadcast.emit('employee-message-sent', {
-            clientName,
-            message,
-            sender: employeeName,
-            timestamp
+        // Atualizar funcionários
+        io.emit('employee-conversation-update', {
+            clientId,
+            message
         });
-        io.emit('update-client-list');
     });
 
-    // Eventos do pedido
-    socket.on('confirmar-pedido', (data) => {
-        const { clientName } = data;
-        console.log('📋 Pedido confirmado:', clientName);
-        io.emit('pedido-confirmado', { clientName });
+    // Funcionário: confirmar pedido
+    socket.on('confirm-order', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        clientStatus[clientId] = 'Pedido Confirmado';
+        clients[clientId].status = 'Pedido Confirmado';
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '✅ Pedido confirmado!'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Pedido Confirmado');
+        
+        // Atualizar lista
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
     });
 
-    socket.on('confirmar-arte', (data) => {
-        const { clientName } = data;
-        console.log('🎨 Arte confirmada:', clientName);
-        io.emit('arte-confirmada', { clientName });
+    // Funcionário: confirmar arte
+    socket.on('confirm-art', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        clientStatus[clientId] = 'Arte Pronta';
+        clients[clientId].status = 'Arte Pronta';
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '🎨 Arte pronta para impressão!'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Arte Pronta');
+        
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
     });
 
-    socket.on('cobrar-cliente', (data) => {
-        const { clientName, valor } = data;
-        console.log('💰 Cobrança enviada:', clientName, 'R$', valor);
-        io.emit('cobranca-enviada', { clientName, valor });
+    // Funcionário: cobrar
+    socket.on('charge-client', (data) => {
+        const { clientId, amount } = data;
+        if (!clients[clientId]) return;
+        
+        pendingCharges[clientId] = {
+            amount: amount,
+            timestamp: new Date().toISOString()
+        };
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: `💰 Valor do serviço: R$ ${amount}`
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('payment-request', {
+            amount: amount,
+            location: 'Dinho Papelaria - Em frente ao Açaí do Doga'
+        });
     });
 
-    socket.on('pagamento-realizado', (data) => {
-        const { clientName } = data;
-        console.log('✅ Pagamento realizado:', clientName);
-        io.emit('pagamento-confirmado', { clientName });
+    // Cliente: confirmar pagamento
+    socket.on('confirm-payment', () => {
+        const clientId = socket.clientId;
+        if (!clients[clientId]) return;
+        
+        // Iniciar timer de produção
+        clientStatus[clientId] = 'Em Produção';
+        clients[clientId].status = 'Em Produção';
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '⏱️ Pagamento confirmado! Em produção - 45 minutos'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('status-update', 'Em Produção');
+        io.to(clientId).emit('production-timer', 45);
+        
+        // Notificar funcionários
+        const employeeMsg = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: `💰 Pagamento confirmado por ${clients[clientId].name}`
+        };
+        io.emit('employee-conversation-update', {
+            clientId,
+            message: employeeMsg
+        });
+        
+        // Atualizar lista
+        const clientList = Object.values(clients).sort((a, b) => 
+            new Date(b.loginTime) - new Date(a.loginTime)
+        );
+        io.emit('client-list-update', clientList);
     });
 
+    // Funcionário: finalizar produção
+    socket.on('finish-production', (clientId) => {
+        if (!clients[clientId]) return;
+        
+        const message = {
+            timestamp: new Date().toISOString(),
+            type: 'system',
+            text: '✅ Produção finalizada! Pronto para retirada.'
+        };
+        
+        conversations[clientId].push(message);
+        saveConversation(clientId);
+        
+        io.to(clientId).emit('conversation-update', message);
+        io.to(clientId).emit('production-finished');
+    });
+
+    // Desconectar
     socket.on('disconnect', () => {
-        if (socket.isClient && socket.clientName) {
-            console.log('🔴 Cliente desconectou:', socket.clientName);
-            io.emit('client-offline', { clientName: socket.clientName });
-            io.emit('update-client-list');
-        }
+        console.log('Cliente desconectado:', socket.id);
+        // Remover referências se necessário
     });
 });
 
-// Iniciar servidor
-server.listen(PORT, '0.0.0.0', () => {
-    console.log('\n🚀 ==================================');
-    console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    console.log(`🔗 Acesse: https://${process.env.RAILWAY_STATIC_URL || 'localhost:' + PORT}`);
-    console.log('👤 Funcionário: Dinho | Senha: 123456');
-    console.log('📁 Conversas salvas em:', CONVERSATIONS_DIR);
-    console.log('🚀 ==================================\n');
+// Rotas
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+server.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
 });
