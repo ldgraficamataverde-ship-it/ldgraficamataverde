@@ -301,41 +301,6 @@ body {
     display: block;
 }
 
-/* Service Options */
-.service-options {
-    padding: 16px 20px;
-    background: var(--bg-tertiary);
-    border-top: 1px solid var(--border-color);
-}
-
-.service-options p {
-    color: var(--text-secondary);
-    margin-bottom: 10px;
-    font-size: 0.9rem;
-}
-
-.options-grid {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.service-option {
-    padding: 8px 16px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.9rem;
-}
-
-.service-option:hover {
-    border-color: var(--yellow-neon);
-    background: rgba(245, 200, 0, 0.1);
-}
-
 /* Chat Input */
 .chat-input {
     display: flex;
@@ -414,6 +379,7 @@ body {
     margin-bottom: 8px;
     cursor: pointer;
     transition: all 0.3s ease;
+    border: 1px solid transparent;
 }
 
 .client-item:hover {
@@ -422,7 +388,7 @@ body {
 }
 
 .client-item.active {
-    border: 1px solid var(--yellow-neon);
+    border-color: var(--yellow-neon);
 }
 
 .client-item .client-name {
@@ -436,7 +402,7 @@ body {
     margin-top: 4px;
 }
 
-.client-item .client-status .status-badge {
+.status-badge {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 12px;
@@ -445,10 +411,10 @@ body {
 }
 
 .status-badge.aguardando { background: #666; color: #fff; }
-.status-badge.em-análise { background: #ff8c00; color: #fff; }
 .status-badge.pedido-confirmado { background: #2196f3; color: #fff; }
-.status-badge.arte-pronta { background: #9c27b0; color: #fff; }
-.status-badge.em-produção { background: #4caf50; color: #fff; }
+.status-badge.pagamento-confirmado { background: #4caf50; color: #fff; }
+.status-badge.em-produção { background: #ff9800; color: #fff; }
+.status-badge.pronto-para-retirada { background: #9c27b0; color: #fff; }
 
 .employee-chat {
     background: var(--bg-secondary);
@@ -474,10 +440,11 @@ body {
     padding: 12px 20px;
     flex-wrap: wrap;
     border-bottom: 1px solid var(--border-color);
+    align-items: center;
 }
 
 .action-btn {
-    padding: 6px 16px;
+    padding: 8px 16px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -485,6 +452,7 @@ body {
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 0.85rem;
+    white-space: nowrap;
 }
 
 .action-btn:hover {
@@ -492,21 +460,16 @@ body {
     background: rgba(245, 200, 0, 0.1);
 }
 
-#charge-input {
-    padding: 12px 20px;
+.production-time-group {
     display: flex;
     gap: 8px;
-    border-bottom: 1px solid var(--border-color);
+    align-items: center;
 }
 
-#charge-input .input-field {
-    flex: 1;
+.production-time-group .input-field {
+    width: 80px;
     margin: 0;
-}
-
-#charge-input .btn-primary {
-    width: auto;
-    padding: 10px 20px;
+    padding: 6px 10px;
 }
 
 #employee-chat-messages {
@@ -516,56 +479,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-
-/* Payment Section */
-#payment-section {
-    padding: 20px;
-    background: var(--bg-tertiary);
-    border-top: 1px solid var(--border-color);
-}
-
-.payment-info {
-    text-align: center;
-    margin-bottom: 16px;
-}
-
-.payment-info p {
-    margin-bottom: 4px;
-}
-
-.payment-info strong {
-    color: var(--yellow-neon);
-}
-
-.payment-options {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-}
-
-.payment-btn {
-    padding: 8px 20px;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.payment-btn:hover {
-    border-color: var(--yellow-neon);
-    background: rgba(245, 200, 0, 0.1);
-}
-
-#confirm-payment-btn {
-    display: block;
-    margin: 0 auto;
-    width: auto;
-    padding: 12px 32px;
 }
 
 /* Responsivo */
@@ -595,20 +508,18 @@ body {
     .client-header h2, .employee-header h2 {
         font-size: 1.4rem;
     }
-}
-
-/* Animações */
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-
-.pulse {
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-.message.system .pulse {
-    display: inline-block;
-    margin-left: 4px;
+    
+    .employee-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .production-time-group {
+        flex-wrap: wrap;
+    }
+    
+    .production-time-group .input-field {
+        flex: 1;
+        width: auto;
+    }
 }
