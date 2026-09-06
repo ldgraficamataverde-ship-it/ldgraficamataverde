@@ -1,6 +1,5 @@
 node_modules/
 conversations/
-users.json
-.env
-*.log
 .DS_Store
+*.log
+.env
