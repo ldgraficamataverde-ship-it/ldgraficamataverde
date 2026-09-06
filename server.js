@@ -146,7 +146,14 @@ io.on('connection', (socket) => {
     // Mensagem do cliente
     socket.on('client-message', (data) => {
         const clientId = socket.clientId;
-        if (!clientId || !conversations[clientId]) return;
+        if (!clientId) {
+            console.log('Erro: clientId não definido');
+            return;
+        }
+        
+        if (!conversations[clientId]) {
+            conversations[clientId] = [];
+        }
 
         const message = {
             timestamp: new Date().toISOString(),
@@ -165,12 +172,21 @@ io.on('connection', (socket) => {
             clientId,
             message
         });
+        
+        console.log(`Mensagem de ${clientId}: ${data.text}`);
     });
 
     // Funcionário: enviar mensagem
     socket.on('employee-message', (data) => {
         const { clientId, text } = data;
-        if (!conversations[clientId]) return;
+        if (!clientId) {
+            console.log('Erro: clientId não definido');
+            return;
+        }
+        
+        if (!conversations[clientId]) {
+            conversations[clientId] = [];
+        }
 
         const message = {
             timestamp: new Date().toISOString(),
@@ -188,6 +204,8 @@ io.on('connection', (socket) => {
             clientId,
             message
         });
+        
+        console.log(`Mensagem do funcionário para ${clientId}: ${text}`);
     });
 
     // Funcionário: confirmar pedido
